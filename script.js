@@ -1198,7 +1198,7 @@ function assignNewWord(mole) {
     updateMoleText(mole, currentWord);
 }
 
-// Modify the animateMole function
+// Optimize the animateMole function for better iPad performance
 function animateMole(mole, goingUp) {
     // Ensure we don't double-animate
     if (mole.userData.isMoving && goingUp) return;
@@ -1207,19 +1207,18 @@ function animateMole(mole, goingUp) {
     
     mole.userData.isMoving = true;
     
-    // Assign a unique click ID to this mole instance when it comes up
-    // This helps prevent phantom clicks by ensuring each mole up/down cycle has a unique identifier
+    // Assign a unique ID to this mole instance when it comes up
     if (goingUp) {
         mole.userData.clickId = Date.now() + Math.floor(Math.random() * 10000);
         console.log('Assigned new clickId:', mole.userData.clickId);
     }
     
     // Adjust the rise height for better visibility through the grass overlay
-    // When up, mole should be clearly visible through the grass holes
-    // When down, mole should be completely hidden
-    const targetY = goingUp ? 0.7 : -1.8; // Slightly higher when up, lower when down
+    // Raised slightly higher on iPad for better touch targeting
+    const targetY = goingUp ? 0.8 : -1.8; // Even higher when up for iPad
     const startY = mole.position.y;
-    const duration = 200;
+    // Faster animations for more responsive touch feel
+    const duration = 180; // Was 200ms, slightly faster
     const startTime = Date.now();
     
     if (goingUp) {
@@ -1238,12 +1237,9 @@ function animateMole(mole, goingUp) {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
         
-        // Easing function for smooth animation
-        const ease = progress < 0.5 
-            ? 2 * progress * progress 
-            : -1 + (4 - 2 * progress) * progress;
-            
-        mole.position.y = startY + (targetY - startY) * ease;
+        // Simplified easing function for smoother performance on iPad
+        // Linear is perfectly fine for this mechanic
+        mole.position.y = startY + (targetY - startY) * progress;
         
         if (progress < 1) {
             requestAnimationFrame(update);
@@ -1417,78 +1413,6 @@ function updateUI() {
         gameTitleDisplay.style.color = '#00008B';
         gameTitleDisplay.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 0.3)';
     }
-}
-
-// Optimize the animateMole function for better iPad performance
-function animateMole(mole, goingUp) {
-    // Ensure we don't double-animate
-    if (mole.userData.isMoving && goingUp) return;
-    
-    console.log(`Animating mole ${goingUp ? 'up' : 'down'} at position:`, mole.position);
-    
-    mole.userData.isMoving = true;
-    
-    // Assign a unique ID to this mole instance when it comes up
-    if (goingUp) {
-        mole.userData.clickId = Date.now() + Math.floor(Math.random() * 10000);
-        console.log('Assigned new clickId:', mole.userData.clickId);
-    }
-    
-    // Adjust the rise height for better visibility through the grass overlay
-    // Raised slightly higher on iPad for better touch targeting
-    const targetY = goingUp ? 0.8 : -1.8; // Even higher when up for iPad
-    const startY = mole.position.y;
-    // Faster animations for more responsive touch feel
-    const duration = 180; // Was 200ms, slightly faster
-    const startTime = Date.now();
-    
-    if (goingUp) {
-        // Make mole visible when coming up
-        mole.visible = true;
-        // Ensure state is correctly set before assigning word
-        mole.userData.isUp = false; // Will be set to true when animation completes
-        assignNewWord(mole);
-    } else {
-        updateMoleText(mole, '');
-        // Clear any stored interaction state
-        mole.userData.lastClicked = null;
-    }
-    
-    function update() {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // Simplified easing function for smoother performance on iPad
-        // Linear is perfectly fine for this mechanic
-        mole.position.y = startY + (targetY - startY) * progress;
-        
-        if (progress < 1) {
-            requestAnimationFrame(update);
-        } else {
-            // Animation is complete
-            mole.userData.isMoving = false;
-            mole.userData.isUp = goingUp;
-            
-            // Complete cleanup when going down
-            if (!goingUp) {
-                // Hide the mole completely
-                mole.visible = false;
-                
-                // Reset all interaction state
-                mole.userData.clickId = null;
-                mole.userData.lastClicked = null;
-                
-                // Log that this mole animation cycle is complete
-                console.log('Mole animation complete - mole is down and reset');
-            } else {
-                // Log that mole is now up and ready for interaction
-                console.log('Mole is now up with ID:', mole.userData.clickId);
-            }
-        }
-    }
-    
-    // Start the animation
-    update();
 }
 
 // Optimize game loop timing for iPad
