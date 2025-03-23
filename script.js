@@ -563,6 +563,24 @@ function positionDecorativeOverlay() {
         return;
     }
     
+    console.log('Positioning dirt holes based on mole hole positions');
+    console.log(`Window dimensions: ${window.innerWidth}x${window.innerHeight}`);
+    
+    // Calculate scale factors based on screen size to help with responsiveness
+    const isLandscape = window.innerWidth > window.innerHeight;
+    const baseWidth = 1024; // Base width for iPad
+    const scaleFactorX = window.innerWidth / baseWidth;
+    
+    // Apply a stronger scale factor for small screens like phones
+    let screenSizeFactor = 1;
+    if (window.innerWidth < 600) {
+        screenSizeFactor = 0.8; // Smaller adjustments for phones
+    } else if (window.innerWidth > 1200) {
+        screenSizeFactor = 1.2; // Larger adjustments for big iPads
+    }
+    
+    console.log(`Screen orientation: ${isLandscape ? 'Landscape' : 'Portrait'}, Scale factors: ${scaleFactorX}, ${screenSizeFactor}`);
+    
     // Get screen coordinates of holes
     const holeScreenPositions = window.holePositions.map(pos => {
         const vector = new THREE.Vector3(pos.x, pos.y, pos.z);
@@ -575,14 +593,16 @@ function positionDecorativeOverlay() {
         };
     });
     
-    console.log('Hole screen positions:', holeScreenPositions);
+    console.log('Original hole screen positions:', holeScreenPositions);
     
     // Position the markers in the overlay to match hole positions
     const markers = document.querySelectorAll('.hole-marker');
+    console.log(`Found ${markers.length} dirt hole markers to position`);
     
-    // Different hole sizes
-    const standardHoleSize = 300; // Standard size for most holes
-    const largeHoleSize =380;    // Larger size for bottom right hole
+    // Different hole sizes for better perspective
+    const backHoleSize = 280;      // Slightly smaller for back holes
+    const frontHoleSize = 320;     // Slightly larger for front holes
+    const largeHoleSize = 380;     // Larger size for bottom right hole
     
     holeScreenPositions.forEach((pos, index) => {
         if (markers[index]) {
@@ -592,14 +612,38 @@ function positionDecorativeOverlay() {
             let posY = pos.y;
             let holeSize;
             
-            // Special handling for bottom right hole (index 3)
-            if (index === 3) {
-                posX += 15; // Shift right to move toward the bottom right corner
-                posY = pos.y + 25; // Shift down to better cover the blue sky
-                holeSize = largeHoleSize;
-            } else {
-                posY = pos.y;
-                holeSize = standardHoleSize;
+            // Custom position adjustments for each hole
+            switch(index) {
+                case 0: // Back Left
+                    posX -= 20 * scaleFactorX * screenSizeFactor; // Shift left
+                    posY += 35 * screenSizeFactor; // Shift down
+                    holeSize = backHoleSize * scaleFactorX;
+                    break;
+                case 1: // Back Right
+                    posX += 25 * scaleFactorX * screenSizeFactor; // Shift right
+                    posY += 35 * screenSizeFactor; // Shift down
+                    holeSize = backHoleSize * scaleFactorX;
+                    break;
+                case 2: // Front Left
+                    posX -= 15 * scaleFactorX * screenSizeFactor; // Shift left
+                    posY += 5 * screenSizeFactor; // Slight shift down
+                    holeSize = frontHoleSize * scaleFactorX;
+                    break;
+                case 3: // Bottom right hole - keep existing adjustments
+                    posX += 15 * scaleFactorX * screenSizeFactor; // Shift right to move toward the bottom right corner
+                    posY += 25 * screenSizeFactor; // Shift down to better cover the blue sky
+                    holeSize = largeHoleSize * scaleFactorX;
+                    break;
+                default:
+                    holeSize = frontHoleSize * scaleFactorX;
+            }
+            
+            // Apply any custom adjustments if provided through the console
+            if (window.customDirtAdjustments && window.customDirtAdjustments[index]) {
+                const custom = window.customDirtAdjustments[index];
+                if (custom.x !== undefined) posX += custom.x;
+                if (custom.y !== undefined) posY += custom.y;
+                console.log(`Applied custom adjustment to hole ${index}: x:${custom.x}, y:${custom.y}`);
             }
             
             // Calculate offsets based on the specific hole size
@@ -611,6 +655,9 @@ function positionDecorativeOverlay() {
             
             markers[index].style.left = percentX + '%';
             markers[index].style.top = percentY + '%';
+            
+            // Log the final position for debugging
+            console.log(`Positioned dirt hole ${index} (${pos.description}): Original pos [${pos.x}, ${pos.y}], Adjusted [${posX}, ${posY}], Final [${percentX}%, ${percentY}%]`);
             
             // Add subtle color variations to each dirt hole for realism
             // Create slightly different brown shades for each hole
@@ -634,7 +681,26 @@ function positionDecorativeOverlay() {
 
 // Call positionDecorativeOverlay on load to ensure dirt holes are visible
 window.addEventListener('load', function() {
+    // First positioning attempt
     setTimeout(positionDecorativeOverlay, 500);
+    
+    // Second positioning attempt with slightly longer delay to ensure everything is ready
+    setTimeout(positionDecorativeOverlay, 1000);
+    
+    // Force a third positioning attempt to ensure alignment is fixed
+    setTimeout(function() {
+        console.log("Forcing final dirt hole positioning");
+        positionDecorativeOverlay();
+        
+        // Also try to force a redraw of the markers to ensure they're correctly positioned
+        const markers = document.querySelectorAll('.hole-marker');
+        markers.forEach(marker => {
+            marker.style.display = 'none';
+            // Force browser to recalculate layout
+            void marker.offsetHeight;
+            marker.style.display = 'block';
+        });
+    }, 1500);
 });
 
 // Initialize scene
@@ -2265,3 +2331,30 @@ window.addEventListener('load', function() {
     // Also initialize game selection the normal way as a backup
     setTimeout(initGameSelection, 600);
 });
+
+// Add a function that can be called from the console to manually reposition dirt holes
+window.fixDirtHoles = function(adjustments) {
+    console.log("Manual dirt hole repositioning triggered");
+    
+    // If custom adjustments are provided, use them
+    if (adjustments && typeof adjustments === 'object') {
+        window.customDirtAdjustments = adjustments;
+        console.log("Using custom adjustments:", adjustments);
+    }
+    
+    // Reposition the dirt holes
+    positionDecorativeOverlay();
+    
+    // Force a redraw of the markers
+    const markers = document.querySelectorAll('.hole-marker');
+    markers.forEach(marker => {
+        marker.style.display = 'none';
+        void marker.offsetHeight;
+        marker.style.display = 'block';
+    });
+    
+    return "Dirt hole repositioning complete. If you need to make custom adjustments, call this function with an object like: fixDirtHoles({0:{x:-10,y:20}, 1:{x:15,y:10}})";
+};
+
+// Initialize scene
+setupScene();
