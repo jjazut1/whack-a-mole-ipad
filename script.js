@@ -331,20 +331,38 @@ document.addEventListener('DOMContentLoaded', function() {
 // Modified handleInteraction function to check for game selection screen
 const originalHandleInteraction = window.handleInteraction || function() {};
 window.handleInteraction = function(event) {
+    // Check if interaction should be blocked during game selection
     const gameSelection = document.getElementById('game-selection');
+    const isGameSelectionVisible = gameSelection && (gameSelection.style.display === 'block' || getComputedStyle(gameSelection).display !== 'none');
     
-    // If game selection is visible, don't handle the interaction
-    if (gameSelection && gameSelection.style.display !== 'none') {
+    if (isGameSelectionVisible) {
+        // If we're touching a game option, let it propagate to the button's handler
+        if (event.type.startsWith('touch') && event.target.closest('.game-option')) {
+            console.log('Touch on game option detected - letting button handler process it');
+            // We'll let the button's own handler deal with it
+            return;
+        }
+        
+        // Prevent default touchstart behavior when game selection is visible
+        if (event.type.startsWith('touch')) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        console.log('Game selection is visible, blocking general interaction');
         return;
     }
     
-    // If game is not active but selection is hidden, it's either a new game or game over screen
+    // If game is not active but game selection is NOT visible, show it
     if (!gameActive) {
-        const gameSelection = document.getElementById('game-selection');
-        gameSelection.style.display = 'block';
-        
-        if (document.getElementById('instructionsElement')) {
-            document.getElementById('instructionsElement').style.display = 'none';
+        // Only show game selection if we're not already showing it and not during game
+        if (gameSelection && gameSelection.style.display === 'none') {
+            gameSelection.style.display = 'block';
+            console.log('Game is not active, showing game selection');
+            
+            // Hide instructions when showing game selection
+            if (document.getElementById('instructionsElement')) {
+                document.getElementById('instructionsElement').style.display = 'none';
+            }
         }
         return;
     }
@@ -760,12 +778,26 @@ function preventDefaultTouch(event) {
 const touchState = {
     lastTouchTime: 0,
     processingTouch: false,
-    touchTimeThreshold: 300 // ms threshold to prevent duplicate touch events
+    touchTimeThreshold: 300, // ms threshold to prevent duplicate touch events
+    gameSelectionHandled: false // New flag to track if we've handled a game selection
 };
 
 // Handle both mouse clicks and touch events
 function handleInteraction(event) {
     console.log('Interaction detected:', event.type);
+    
+    // Check if game selection is visible
+    const gameSelection = document.getElementById('game-selection');
+    const isGameSelectionVisible = gameSelection && (gameSelection.style.display === 'block' || getComputedStyle(gameSelection).display !== 'none');
+    
+    console.log(`Game selection visibility: ${isGameSelectionVisible}`);
+    
+    // If game selection is visible, don't process game interactions
+    if (isGameSelectionVisible) {
+        console.log('Game selection is visible, not handling game interaction');
+        // Don't prevent default here to allow the game selection buttons to work
+        return;
+    }
     
     // Prevent any scrolling/zooming on iPad
     if (event.type.startsWith('touch')) {
@@ -2241,18 +2273,32 @@ function attachGameOptionHandlers() {
     
     console.log(`Found ${gameOptions.length} game options in failsafe handler`);
     
+    // Get the game selection container
+    const gameSelection = document.getElementById('game-selection');
+    
     // Apply click handler to each option
     gameOptions.forEach(button => {
-        // Remove any existing handlers
-        button.onclick = null;
+        // Remove any existing handlers by cloning and replacing
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        button = newButton;
+        
+        // Force higher z-index to ensure touch events reach the button
+        button.style.zIndex = '100';
+        button.style.position = 'relative';
+        
+        // Set pointer events to ensure clicks reach the button
+        button.style.pointerEvents = 'auto';
         
         // Add a direct click handler
         button.onclick = function(e) {
             e.preventDefault();
+            e.stopPropagation();
             console.log(`Direct click on ${this.textContent}`);
             
-            const gameSelection = document.getElementById('game-selection');
-            const gameTitleDisplay = document.getElementById('game-title-display');
+            // Disable further touch processing temporarily
+            touchState.processingTouch = true;
+            
             const selectedGame = this.getAttribute('data-game');
             
             if (!selectedGame || !wordCategories[selectedGame]) {
@@ -2268,46 +2314,71 @@ function attachGameOptionHandlers() {
             correctWords = wordCategories[selectedGame].words;
             incorrectWords = generateIncorrectWords(selectedGame);
             
-            // Update UI
-            if (gameSelection) gameSelection.style.display = 'none';
+            // Force the game selection to hide immediately
+            if (gameSelection) {
+                console.log('Forcing game selection to hide');
+                gameSelection.style.display = 'none';
+                // Use classList for better iOS compatibility
+                gameSelection.classList.add('hidden');
+                
+                // Also set CSS properties that can't be overridden
+                gameSelection.style.visibility = 'hidden';
+                gameSelection.style.opacity = '0';
+                gameSelection.style.pointerEvents = 'none';
+            }
+            
+            // Show game title
+            const gameTitleDisplay = document.getElementById('game-title-display');
             if (gameTitleDisplay) {
                 gameTitleDisplay.textContent = wordCategories[selectedGame].title;
                 gameTitleDisplay.style.display = 'block';
             }
             
-            // Start game
+            // Use a small delay before starting the game to ensure UI is updated
             setTimeout(() => {
+                touchState.gameSelectionHandled = true;
+                touchState.processingTouch = false;
                 startGame();
-            }, 50);
+            }, 100);
+            
+            // Prevent any further processing of this event
+            return false;
         };
         
-        // Also add touch handler for iOS
-        button.ontouchend = function(e) {
-            e.preventDefault();
-            console.log(`Direct touch on ${this.textContent}`);
-            this.onclick(e);
-        };
+        // Add separate touch handlers
+        ['touchstart', 'touchend'].forEach(eventType => {
+            button.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (eventType === 'touchend') {
+                    console.log(`${eventType} on game option: ${this.textContent}`);
+                    this.onclick(e);
+                }
+                
+                // Add visual feedback for touchstart
+                if (eventType === 'touchstart') {
+                    this.style.backgroundColor = '#7BC67B';
+                    this.style.transform = 'scale(0.95)';
+                }
+            }, { passive: false });
+        });
     });
     
-    // Add a click handler to the entire game selection container as a final fallback
-    const gameSelection = document.getElementById('game-selection');
+    // If game selection exists, make sure it's properly set up
     if (gameSelection) {
-        gameSelection.addEventListener('click', function(e) {
-            // Check if the click was on a game option
-            let target = e.target;
-            while (target !== this) {
-                if (target.classList && target.classList.contains('game-option')) {
-                    console.log(`Delegated click on ${target.textContent}`);
-                    
-                    // Trigger the option's click handler
-                    if (target.onclick) {
-                        target.onclick(e);
-                    }
-                    return;
-                }
-                target = target.parentNode;
-            }
-        });
+        // Ensure it's visible initially
+        gameSelection.style.display = 'block';
+        gameSelection.style.visibility = 'visible';
+        gameSelection.style.opacity = '1';
+        gameSelection.style.pointerEvents = 'auto';
+        gameSelection.classList.remove('hidden');
+        
+        // Add better styles for iOS
+        gameSelection.style.webkitTransform = 'translate3d(0,0,0)';
+        gameSelection.style.transform = 'translate3d(0,0,0)';
+        
+        console.log("Game selection visibility ensured");
     }
     
     console.log("Failsafe game option handlers attached");
@@ -2355,6 +2426,9 @@ window.fixDirtHoles = function(adjustments) {
     
     return "Dirt hole repositioning complete. If you need to make custom adjustments, call this function with an object like: fixDirtHoles({0:{x:-10,y:20}, 1:{x:15,y:10}})";
 };
+
+// Make absolutely sure the function is in the global scope
+self.fixDirtHoles = window.fixDirtHoles;
 
 // Initialize scene
 setupScene();
