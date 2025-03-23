@@ -218,74 +218,66 @@ function addTouchStyles() {
 // Call immediately
 addTouchStyles();
 
-// Modify game selection UI setup for better touch interaction
+// Modify game selection UI setup for better touch interaction - fixing the issue with buttons not responding
 function initGameSelection() {
+    console.log("Initializing game selection UI...");
+    
     const gameSelection = document.getElementById('game-selection');
-    const gameOptions = document.querySelectorAll('.game-option');
-    const gameTitleDisplay = document.getElementById('game-title-display');
+    if (!gameSelection) {
+        console.error("Game selection element not found!");
+        return;
+    }
+    
+    // Clear any existing handlers that might be interfering
+    const gameOptions = gameSelection.querySelectorAll('.game-option');
+    console.log(`Found ${gameOptions.length} game options`);
     
     // Initially hide title display and show selection UI
-    gameTitleDisplay.style.display = 'none';
+    const gameTitleDisplay = document.getElementById('game-title-display');
+    if (gameTitleDisplay) {
+        gameTitleDisplay.style.display = 'none';
+    }
     gameSelection.style.display = 'block';
     
     // Apply iPad-friendly styles
     gameSelection.style.padding = '20px';
     gameSelection.style.maxWidth = '90%';
     gameSelection.style.margin = '0 auto';
-    gameTitleDisplay.style.fontSize = '28px';
-    gameTitleDisplay.style.padding = '10px';
-    gameTitleDisplay.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+    if (gameTitleDisplay) {
+        gameTitleDisplay.style.fontSize = '28px';
+        gameTitleDisplay.style.padding = '10px';
+        gameTitleDisplay.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+    }
     
-    // Set up event listeners for game options - using touchend for better iPad experience
+    // Setup direct click/touch handlers on all game options
     gameOptions.forEach(option => {
-        // Remove existing click handlers to prevent duplicates
-        option.replaceWith(option.cloneNode(true));
-    });
-    
-    // Re-select elements after cloning
-    const updatedGameOptions = document.querySelectorAll('.game-option');
-    
-    updatedGameOptions.forEach(option => {
-        // Add touch feedback
-        option.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            this.style.transform = 'scale(0.95)';
-        }, { passive: false });
+        // Remove all existing event listeners to prevent duplicates
+        const newOption = option.cloneNode(true);
+        option.parentNode.replaceChild(newOption, option);
         
-        // Add main interaction handler
-        option.addEventListener('touchend', function(e) {
-            e.preventDefault();
-            
-            // Create touch feedback
-            const rect = this.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            createTouchFeedback(centerX, centerY);
-            
-            this.style.transform = 'scale(1)';
-            
-            const selectedGame = this.getAttribute('data-game');
-            
-            // Set current category
-            currentCategory = selectedGame;
-            correctWords = wordCategories[selectedGame].words;
-            incorrectWords = generateIncorrectWords(selectedGame);
-            
-            // Hide selection UI
-            gameSelection.style.display = 'none';
-            
-            // Set and show the game title
-            gameTitleDisplay.textContent = wordCategories[selectedGame].title;
-            gameTitleDisplay.style.display = 'block';
-            
-            // Start the game
-            startGame();
-        }, { passive: false });
+        // Log for debugging
+        console.log(`Setting up handler for ${newOption.textContent} (${newOption.getAttribute('data-game')})`);
         
-        // Keep click handler for non-touch devices
-        option.addEventListener('click', function(e) {
-            if (e.pointerType !== 'touch') {
+        // Add multiple event listeners for maximum compatibility
+        ['click', 'touchend'].forEach(eventType => {
+            newOption.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Log that we received the event
+                console.log(`${eventType} event received on ${this.textContent}`);
+                
+                // Create visual feedback
+                this.style.backgroundColor = '#7BC67B';
+                
+                // Get the game category from the data attribute
                 const selectedGame = this.getAttribute('data-game');
+                console.log(`Selected game: ${selectedGame}`);
+                
+                if (!selectedGame) {
+                    console.error("No game selected - data-game attribute missing");
+                    return;
+                }
                 
                 // Set current category
                 currentCategory = selectedGame;
@@ -296,28 +288,44 @@ function initGameSelection() {
                 gameSelection.style.display = 'none';
                 
                 // Set and show the game title
-                gameTitleDisplay.textContent = wordCategories[selectedGame].title;
-                gameTitleDisplay.style.display = 'block';
+                if (gameTitleDisplay) {
+                    gameTitleDisplay.textContent = wordCategories[selectedGame].title;
+                    gameTitleDisplay.style.display = 'block';
+                }
                 
-                // Start the game
-                startGame();
-            }
+                // Start the game after a short delay to allow UI updates
+                setTimeout(() => {
+                    startGame();
+                }, 50);
+            }, { passive: false });
         });
+        
+        // Also add touchstart for feedback
+        newOption.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            console.log('Touch start on game option');
+            this.style.transform = 'scale(0.95)';
+            this.style.backgroundColor = '#7BC67B';
+        }, { passive: false });
     });
+    
+    console.log("Game selection initialization complete");
 }
 
-// Call initGameSelection after DOM is loaded
+// Call initGameSelection when DOM is completely loaded and after a slight delay to ensure everything is ready
 document.addEventListener('DOMContentLoaded', function() {
-    initGameSelection();
+    console.log("DOM content loaded");
     
-    // Detect iOS/iPad
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || 
-                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                 
-    if (isIOS) {
-        console.log("iOS device detected - applying iPad optimizations");
-        document.body.classList.add('ios-device');
+    // First detect device - needed for other optimizations
+    if (typeof deviceInfo !== 'undefined') {
+        deviceInfo.initialize();
     }
+    
+    // Initialize game selection with a slight delay to ensure DOM is completely ready
+    setTimeout(() => {
+        initGameSelection();
+        console.log("Game selection initialized after delay");
+    }, 300);
 });
 
 // Modified handleInteraction function to check for game selection screen
@@ -2202,6 +2210,18 @@ const deviceInfo = {
                     font-size: 42px !important;
                     padding: 25px 35px !important;
                 }
+                
+                /* Fix for game selection on iPad */
+                #game-selection {
+                    background-color: rgba(255, 255, 255, 0.95) !important;
+                    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3) !important;
+                }
+                
+                #game-selection .game-option {
+                    font-size: 28px !important;
+                    padding: 20px 25px !important;
+                    margin: 20px 0 !important;
+                }
             `;
             document.head.appendChild(ipadStyles);
             
@@ -2215,130 +2235,109 @@ const deviceInfo = {
     }
 };
 
-// Initialize device detection after DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    deviceInfo.initialize();
+// Failsafe function to ensure game options work on iPad
+function attachGameOptionHandlers() {
+    console.log("Setting up failsafe touch handlers for game options");
     
-    // Reconfigure overlay positioning for iPad
-    if (deviceInfo.isIPad) {
-        // Apply special positioning for iPad
-        setTimeout(() => {
-            positionDecorativeOverlayForIPad();
-        }, 600);
-    }
-});
-
-// Improved positioning function specifically for iPad
-function positionDecorativeOverlayForIPad() {
-    if (!window.holePositions || window.holePositions.length === 0) {
-        console.log('No hole positions available');
+    // Direct DOM query for game options
+    const gameOptions = document.querySelectorAll('.game-option');
+    if (!gameOptions || gameOptions.length === 0) {
+        console.error("Game options not found in failsafe handler");
+        
+        // Schedule another attempt if none found
+        setTimeout(attachGameOptionHandlers, 500);
         return;
     }
     
-    // Get screen coordinates of holes
-    const holeScreenPositions = window.holePositions.map(pos => {
-        const vector = new THREE.Vector3(pos.x, pos.y, pos.z);
-        vector.project(camera);
+    console.log(`Found ${gameOptions.length} game options in failsafe handler`);
+    
+    // Apply click handler to each option
+    gameOptions.forEach(button => {
+        // Remove any existing handlers
+        button.onclick = null;
         
-        return {
-            x: (vector.x * 0.5 + 0.5) * window.innerWidth,
-            y: -(vector.y * 0.5 - 0.5) * window.innerHeight,
-            description: pos.description
+        // Add a direct click handler
+        button.onclick = function(e) {
+            e.preventDefault();
+            console.log(`Direct click on ${this.textContent}`);
+            
+            const gameSelection = document.getElementById('game-selection');
+            const gameTitleDisplay = document.getElementById('game-title-display');
+            const selectedGame = this.getAttribute('data-game');
+            
+            if (!selectedGame || !wordCategories[selectedGame]) {
+                console.error(`Invalid game selected: ${selectedGame}`);
+                return;
+            }
+            
+            // Highlight button
+            this.style.backgroundColor = '#7BC67B';
+            
+            // Set game data
+            currentCategory = selectedGame;
+            correctWords = wordCategories[selectedGame].words;
+            incorrectWords = generateIncorrectWords(selectedGame);
+            
+            // Update UI
+            if (gameSelection) gameSelection.style.display = 'none';
+            if (gameTitleDisplay) {
+                gameTitleDisplay.textContent = wordCategories[selectedGame].title;
+                gameTitleDisplay.style.display = 'block';
+            }
+            
+            // Start game
+            setTimeout(() => {
+                startGame();
+            }, 50);
+        };
+        
+        // Also add touch handler for iOS
+        button.ontouchend = function(e) {
+            e.preventDefault();
+            console.log(`Direct touch on ${this.textContent}`);
+            this.onclick(e);
         };
     });
     
-    console.log('iPad hole screen positions:', holeScreenPositions);
-    
-    // Position the markers in the overlay to match hole positions
-    const markers = document.querySelectorAll('.hole-marker');
-    
-    // Different hole sizes - even larger for iPad
-    const iPadHoleSize = 380; // Larger size for all holes on iPad
-    
-    holeScreenPositions.forEach((pos, index) => {
-        if (markers[index]) {
-            let posX = pos.x;
-            let posY = pos.y;
-            
-            // Special positioning adjustments for iPad
-            // Different offsets for different corners to optimize coverage
-            if (index === 0) { // back left
-                posX -= 10;
-                posY -= 5;
-            } else if (index === 1) { // back right
-                posX += 10;
-                posY -= 5;
-            } else if (index === 2) { // front left
-                posX -= 10;
-                posY += 15;
-            } else if (index === 3) { // front right
-                posX += 20;
-                posY += 35;
+    // Add a click handler to the entire game selection container as a final fallback
+    const gameSelection = document.getElementById('game-selection');
+    if (gameSelection) {
+        gameSelection.addEventListener('click', function(e) {
+            // Check if the click was on a game option
+            let target = e.target;
+            while (target !== this) {
+                if (target.classList && target.classList.contains('game-option')) {
+                    console.log(`Delegated click on ${target.textContent}`);
+                    
+                    // Trigger the option's click handler
+                    if (target.onclick) {
+                        target.onclick(e);
+                    }
+                    return;
+                }
+                target = target.parentNode;
             }
-            
-            const offsetX = iPadHoleSize / 2;
-            const offsetY = iPadHoleSize / 2;
-            
-            const percentX = ((posX - offsetX) / window.innerWidth) * 100;
-            const percentY = ((posY - offsetY) / window.innerHeight) * 100;
-            
-            markers[index].style.left = percentX + '%';
-            markers[index].style.top = percentY + '%';
-            markers[index].style.width = iPadHoleSize + 'px';
-            markers[index].style.height = iPadHoleSize + 'px';
-            
-            // Add subtle color variations to each dirt hole for realism
-            const brownBase = [155, 118, 83];
-            const randomOffset = [
-                Math.floor(Math.random() * 10) - 5,
-                Math.floor(Math.random() * 8) - 4,
-                Math.floor(Math.random() * 6) - 3
-            ];
-            
-            const randomBrown = [
-                Math.max(140, Math.min(170, brownBase[0] + randomOffset[0])),
-                Math.max(100, Math.min(130, brownBase[1] + randomOffset[1])),
-                Math.max(70, Math.min(100, brownBase[2] + randomOffset[2]))
-            ];
-            
-            markers[index].style.backgroundColor = `rgb(${randomBrown[0]}, ${randomBrown[1]}, ${randomBrown[2]})`;
-        }
-    });
-    
-    console.log("Positioned overlay for iPad");
-}
-
-// Enhance window resize handling for iPad
-window.addEventListener('resize', function() {
-    // Recalculate positions based on device
-    if (deviceInfo.isIPad) {
-        positionDecorativeOverlayForIPad();
-    } else {
-        positionDecorativeOverlay();
+        });
     }
     
-    // Update renderer size
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-});
+    console.log("Failsafe game option handlers attached");
+}
 
-// Add orientation change handling for iPad
-window.addEventListener('orientationchange', function() {
-    console.log('Orientation changed');
+// Initialize all event handlers when window loads
+window.addEventListener('load', function() {
+    console.log("Window loaded - initializing all handlers");
     
-    // Wait for orientation change to complete
-    setTimeout(() => {
-        // Update renderer size
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        
-        // Reposition overlay
-        if (deviceInfo.isIPad) {
-            positionDecorativeOverlayForIPad();
-        } else {
-            positionDecorativeOverlay();
-        }
-    }, 300);
+    // First position overlay
+    setTimeout(positionDecorativeOverlay, 500);
+    
+    // Initialize device detection
+    if (typeof deviceInfo !== 'undefined') {
+        deviceInfo.initialize();
+    }
+    
+    // Attach failsafe handlers for game options
+    attachGameOptionHandlers();
+    
+    // Also initialize game selection the normal way as a backup
+    setTimeout(initGameSelection, 600);
 });
