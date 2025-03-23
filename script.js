@@ -11,20 +11,46 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerH
 const renderer = new THREE.WebGLRenderer({ 
     antialias: true, 
     alpha: true,
-    premultipliedAlpha: false // Ensure proper alpha blending
+    premultipliedAlpha: false, // Ensure proper alpha blending
+    powerPreference: 'high-performance' // Add performance preference for mobile devices
 }); 
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.sortObjects = true;
 renderer.setClearColor(0x000000, 0); // Set to fully transparent
 renderer.setClearAlpha(0); // Explicitly set alpha to 0
+renderer.setPixelRatio(window.devicePixelRatio || 1); // Better handling of high-DPI screens like iPad
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
 // Configure canvas for better touch events
 const canvas = renderer.domElement;
 canvas.style.touchAction = 'none'; // Disable browser touch actions
-canvas.addEventListener('touchstart', function(e) {
-    e.preventDefault(); // Prevent default touch behavior
-}, { passive: false });
+// Add all touch event listeners with passive: false to ensure preventDefault works
+['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(eventName => {
+    canvas.addEventListener(eventName, function(e) {
+        e.preventDefault(); // Prevent default touch behavior like scrolling
+    }, { passive: false });
+});
+
+// Add meta viewport tag to prevent unwanted zooming on iPad
+function addViewportMeta() {
+    // Check if viewport meta tag already exists
+    let metaViewport = document.querySelector('meta[name="viewport"]');
+    
+    if (!metaViewport) {
+        // Create and add the viewport meta tag
+        metaViewport = document.createElement('meta');
+        metaViewport.name = 'viewport';
+        document.head.appendChild(metaViewport);
+    }
+    
+    // Set viewport properties optimized for games on touch devices
+    metaViewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+    
+    console.log("Viewport meta tag configured for touch devices");
+}
+
+// Call immediately
+addViewportMeta();
 
 // Initialize arrays and game state
 const moles = [];
@@ -107,7 +133,92 @@ function shuffleArray(array) {
     return newArray;
 }
 
-// Set up game selection UI
+// Add iPad-specific CSS
+function addTouchStyles() {
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+        /* Larger UI elements for touch */
+        #game-selection .game-option {
+            padding: 15px 20px;
+            margin: 10px;
+            font-size: 24px;
+            border-radius: 10px;
+            min-width: 200px;
+            cursor: pointer;
+            transition: transform 0.1s ease-out;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        #game-selection .game-option:active {
+            transform: scale(0.95);
+        }
+        
+        /* Touch ripple animation */
+        @keyframes rippleAnimation {
+            from { transform: scale(0); opacity: 1; }
+            to { transform: scale(2); opacity: 0; }
+        }
+        
+        .touch-ripple {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: rippleAnimation 0.4s ease-out forwards;
+        }
+        
+        /* Streak bonus animation for touch devices */
+        .streak-bonus {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+            background-color: #FF5722;
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            padding: 20px 30px;
+            border-radius: 15px;
+            opacity: 0;
+            z-index: 1000;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+            pointer-events: none;
+        }
+        
+        .streak-bonus.active {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+        
+        /* Hole marker size optimization for iPad */
+        .hole-marker {
+            border-radius: 50%;
+            position: absolute;
+            width: 150px;
+            height: 150px;
+        }
+        
+        /* Increase size of UI elements for iPad */
+        @media (pointer: coarse) {
+            #game-title-display {
+                font-size: 32px !important;
+            }
+            
+            #instructionsElement {
+                font-size: 28px !important;
+                padding: 15px !important;
+            }
+        }
+    `;
+    document.head.appendChild(styleEl);
+    console.log("Added touch-optimized styles");
+}
+
+// Call immediately
+addTouchStyles();
+
+// Modify game selection UI setup for better touch interaction
 function initGameSelection() {
     const gameSelection = document.getElementById('game-selection');
     const gameOptions = document.querySelectorAll('.game-option');
@@ -117,9 +228,42 @@ function initGameSelection() {
     gameTitleDisplay.style.display = 'none';
     gameSelection.style.display = 'block';
     
-    // Set up event listeners for game options
+    // Apply iPad-friendly styles
+    gameSelection.style.padding = '20px';
+    gameSelection.style.maxWidth = '90%';
+    gameSelection.style.margin = '0 auto';
+    gameTitleDisplay.style.fontSize = '28px';
+    gameTitleDisplay.style.padding = '10px';
+    gameTitleDisplay.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+    
+    // Set up event listeners for game options - using touchend for better iPad experience
     gameOptions.forEach(option => {
-        option.addEventListener('click', function() {
+        // Remove existing click handlers to prevent duplicates
+        option.replaceWith(option.cloneNode(true));
+    });
+    
+    // Re-select elements after cloning
+    const updatedGameOptions = document.querySelectorAll('.game-option');
+    
+    updatedGameOptions.forEach(option => {
+        // Add touch feedback
+        option.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            this.style.transform = 'scale(0.95)';
+        }, { passive: false });
+        
+        // Add main interaction handler
+        option.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            
+            // Create touch feedback
+            const rect = this.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            createTouchFeedback(centerX, centerY);
+            
+            this.style.transform = 'scale(1)';
+            
             const selectedGame = this.getAttribute('data-game');
             
             // Set current category
@@ -136,12 +280,45 @@ function initGameSelection() {
             
             // Start the game
             startGame();
+        }, { passive: false });
+        
+        // Keep click handler for non-touch devices
+        option.addEventListener('click', function(e) {
+            if (e.pointerType !== 'touch') {
+                const selectedGame = this.getAttribute('data-game');
+                
+                // Set current category
+                currentCategory = selectedGame;
+                correctWords = wordCategories[selectedGame].words;
+                incorrectWords = generateIncorrectWords(selectedGame);
+                
+                // Hide selection UI
+                gameSelection.style.display = 'none';
+                
+                // Set and show the game title
+                gameTitleDisplay.textContent = wordCategories[selectedGame].title;
+                gameTitleDisplay.style.display = 'block';
+                
+                // Start the game
+                startGame();
+            }
         });
     });
 }
 
 // Call initGameSelection after DOM is loaded
-document.addEventListener('DOMContentLoaded', initGameSelection);
+document.addEventListener('DOMContentLoaded', function() {
+    initGameSelection();
+    
+    // Detect iOS/iPad
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || 
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                 
+    if (isIOS) {
+        console.log("iOS device detected - applying iPad optimizations");
+        document.body.classList.add('ios-device');
+    }
+});
 
 // Modified handleInteraction function to check for game selection screen
 const originalHandleInteraction = window.handleInteraction || function() {};
@@ -505,24 +682,36 @@ function preventDefaultTouch(event) {
     event.stopPropagation();
 }
 
+// Enhanced touch state tracking
+const touchState = {
+    lastTouchTime: 0,
+    processingTouch: false,
+    touchTimeThreshold: 300 // ms threshold to prevent duplicate touch events
+};
+
 // Handle both mouse clicks and touch events
 function handleInteraction(event) {
     console.log('Interaction detected:', event.type);
     
-    // Create a unique ID for this interaction to prevent duplicate processing
-    const interactionId = Date.now();
-    
-    // Store the current interaction ID to prevent duplicate processing
-    if (window.lastInteractionId && (interactionId - window.lastInteractionId) < 300) {
-        console.log('Ignoring rapid interaction');
-        return; // Ignore interactions that happen too quickly after another
-    }
-    window.lastInteractionId = interactionId;
-    
-    // Prevent default behavior for touch events to avoid scrolling/zooming
-    if (event.type === 'touchstart') {
+    // Prevent any scrolling/zooming on iPad
+    if (event.type.startsWith('touch')) {
         event.preventDefault();
         event.stopPropagation();
+        
+        // iPad-specific touch handling with debouncing
+        const now = Date.now();
+        if (now - touchState.lastTouchTime < touchState.touchTimeThreshold || touchState.processingTouch) {
+            console.log('Ignoring rapid touch - debounce protection');
+            return;
+        }
+        
+        touchState.lastTouchTime = now;
+        touchState.processingTouch = true;
+        
+        // Release touch lock after processing
+        setTimeout(() => {
+            touchState.processingTouch = false;
+        }, touchState.touchTimeThreshold);
     }
     
     if (!gameActive) {
@@ -587,6 +776,10 @@ function handleInteraction(event) {
         console.log('Hit detected on:', hitMole);
     }
     
+    // For touch events, use a larger hit area - especially on iPad
+    const isTouchEvent = event.type === 'touchstart';
+    const proximityThreshold = isTouchEvent ? 180 : 100; // Even larger for iPad touches (was 150)
+    
     // If a mole was hit
     if (hitMole && hitMole.userData && hitMole.userData.isUp && !hitMole.userData.isMoving) {
         console.log('Processing hit on mole:', hitMole);
@@ -626,7 +819,7 @@ function handleInteraction(event) {
             animateMole(hitMole, false);
         }, 50);
         
-    } else if (event.type === 'touchstart') {
+    } else if (isTouchEvent) {
         // Special handling for iPad touch - if no direct hit was detected
         // Find the closest visible mole to the touch point
         console.log('No direct hit - checking proximity for touch events');
@@ -639,7 +832,7 @@ function handleInteraction(event) {
                 // Project mole position to screen coordinates
                 const molePos = new THREE.Vector3(
                     mole.position.x,
-                    mole.position.y,
+                    mole.position.y + 0.7, // Target higher on the mole for better touch targeting
                     mole.position.z
                 );
                 molePos.project(camera);
@@ -654,9 +847,6 @@ function handleInteraction(event) {
                     Math.pow(moleScreenY - clientY, 2)
                 );
                 
-                // Set a reasonable proximity threshold (in pixels)
-                const proximityThreshold = 150; // Larger for iPad
-                
                 if (distance < proximityThreshold && distance < closestDistance) {
                     closestDistance = distance;
                     closestMole = mole;
@@ -670,6 +860,9 @@ function handleInteraction(event) {
             
             // Mark this mole as being hit to prevent duplicate hits
             closestMole.userData.isMoving = true;
+            
+            // Add visual feedback for touch at the touch point
+            createTouchFeedback(clientX, clientY);
             
             if (isCorrectWord) {
                 score += 10;
@@ -700,15 +893,41 @@ function handleInteraction(event) {
             setTimeout(() => {
                 animateMole(closestMole, false);
             }, 50);
+        } else {
+            // Provide visual feedback even when no mole is hit
+            createTouchFeedback(clientX, clientY);
         }
     }
+}
+
+// Add touch feedback function for better iPad interaction
+function createTouchFeedback(x, y) {
+    // Create a visual ripple effect at touch point
+    const ripple = document.createElement('div');
+    ripple.className = 'touch-ripple';
+    ripple.style.position = 'absolute';
+    ripple.style.left = (x - 30) + 'px';
+    ripple.style.top = (y - 30) + 'px';
+    ripple.style.width = '60px';
+    ripple.style.height = '60px';
+    ripple.style.borderRadius = '50%';
+    ripple.style.background = 'rgba(255, 255, 255, 0.6)';
+    ripple.style.transform = 'scale(0)';
+    ripple.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+    ripple.style.zIndex = '1000';
+    ripple.style.pointerEvents = 'none';
+    document.body.appendChild(ripple);
     
-    // Clear the interaction ID after a delay to prevent issues with holding
+    // Trigger animation
     setTimeout(() => {
-        if (window.lastInteractionId === interactionId) {
-            window.lastInteractionId = null;
-        }
-    }, 500);
+        ripple.style.transform = 'scale(1)';
+        ripple.style.opacity = '0';
+    }, 10);
+    
+    // Remove after animation completes
+    setTimeout(() => {
+        document.body.removeChild(ripple);
+    }, 300);
 }
 
 // Show streak bonus celebration notification
@@ -1059,6 +1278,8 @@ function startGame() {
     
     // Reset any global interaction state
     window.lastInteractionId = null;
+    touchState.processingTouch = false;
+    touchState.lastTouchTime = 0;
     
     console.log("Starting new game - resetting all mole states");
     
@@ -1087,7 +1308,17 @@ function startGame() {
     
     // Update the instructions to match the current category
     if (instructionsElement) {
-        instructionsElement.innerHTML = `Hit the mole when you see a word from the "${wordCategories[currentCategory].title}" list!`;
+        // Make instructions iPad-friendly with larger text and clear background
+        instructionsElement.style.fontSize = '28px';
+        instructionsElement.style.padding = '15px';
+        instructionsElement.style.background = 'rgba(0, 0, 0, 0.7)';
+        instructionsElement.style.borderRadius = '10px';
+        instructionsElement.style.maxWidth = '90%';
+        instructionsElement.style.textAlign = 'center';
+        instructionsElement.style.left = '50%';
+        instructionsElement.style.transform = 'translateX(-50%)';
+        
+        instructionsElement.innerHTML = `Tap the mole when you see a word from the "<b>${wordCategories[currentCategory].title}</b>" list!`;
         instructionsElement.style.display = 'block';
         
         // Hide instructions after 3 seconds
@@ -1126,14 +1357,23 @@ function startGame() {
             });
             
             // Reset global interaction state again
-            window.lastInteractionId = null;
+            touchState.processingTouch = false;
+            touchState.lastTouchTime = 0;
             
-            // Show game over screen
-            instructionsElement.innerHTML = `Game Over! Final Score: ${score}<br>Click anywhere to choose a new game`;
+            // Show game over screen with iPad-friendly styling
+            instructionsElement.innerHTML = `<div style="font-size: 32px; margin-bottom: 15px;">Game Over!</div>
+                                           <div style="font-size: 28px; margin-bottom: 20px;">Final Score: ${score}</div>
+                                           <div style="font-size: 24px;">Tap anywhere to choose a new game</div>`;
             instructionsElement.style.display = 'block';
             
             // Hide the category title when the game is over
             document.getElementById('game-title-display').style.display = 'none';
+            
+            // For iPad - ensure the game selection will respond to the next tap
+            setTimeout(() => {
+                // Reset touch state after a delay
+                touchState.processingTouch = false;
+            }, 500);
         }
     }, 1000);
 }
@@ -1142,25 +1382,108 @@ function updateUI() {
     scoreElement.textContent = `Score: ${score}`;
     timerElement.textContent = `Time: ${timeRemaining}s`;
     
+    // Make UI elements larger for iPad
+    scoreElement.style.fontSize = '28px';
+    timerElement.style.fontSize = '28px';
+    
     // Ensure styling is maintained
     scoreElement.style.color = '#00008B'; // Dark blue
     scoreElement.style.fontWeight = 'bold';
-    scoreElement.style.textShadow = '1px 1px 2px rgba(255, 255, 255, 0.7)';
+    scoreElement.style.textShadow = '2px 2px 4px rgba(255, 255, 255, 0.8)'; // Stronger shadow
     scoreElement.style.zIndex = '5'; // Maintain higher z-index
     
     timerElement.style.color = '#00008B'; // Dark blue
     timerElement.style.fontWeight = 'bold';
-    timerElement.style.textShadow = '1px 1px 2px rgba(255, 255, 255, 0.7)';
+    timerElement.style.textShadow = '2px 2px 4px rgba(255, 255, 255, 0.8)'; // Stronger shadow
     timerElement.style.zIndex = '5'; // Maintain higher z-index
     
-    // Ensure game title is displayed correctly
+    // Ensure game title is displayed correctly with larger font for iPad
     const gameTitleDisplay = document.getElementById('game-title-display');
     if (gameTitleDisplay && gameActive) {
         gameTitleDisplay.textContent = wordCategories[currentCategory].title;
         gameTitleDisplay.style.display = 'block';
+        gameTitleDisplay.style.fontSize = '32px';
+        gameTitleDisplay.style.padding = '10px 15px';
+        gameTitleDisplay.style.background = 'rgba(255, 255, 255, 0.8)';
+        gameTitleDisplay.style.borderRadius = '10px';
+        gameTitleDisplay.style.color = '#00008B';
+        gameTitleDisplay.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 0.3)';
     }
 }
 
+// Optimize the animateMole function for better iPad performance
+function animateMole(mole, goingUp) {
+    // Ensure we don't double-animate
+    if (mole.userData.isMoving && goingUp) return;
+    
+    console.log(`Animating mole ${goingUp ? 'up' : 'down'} at position:`, mole.position);
+    
+    mole.userData.isMoving = true;
+    
+    // Assign a unique ID to this mole instance when it comes up
+    if (goingUp) {
+        mole.userData.clickId = Date.now() + Math.floor(Math.random() * 10000);
+        console.log('Assigned new clickId:', mole.userData.clickId);
+    }
+    
+    // Adjust the rise height for better visibility through the grass overlay
+    // Raised slightly higher on iPad for better touch targeting
+    const targetY = goingUp ? 0.8 : -1.8; // Even higher when up for iPad
+    const startY = mole.position.y;
+    // Faster animations for more responsive touch feel
+    const duration = 180; // Was 200ms, slightly faster
+    const startTime = Date.now();
+    
+    if (goingUp) {
+        // Make mole visible when coming up
+        mole.visible = true;
+        // Ensure state is correctly set before assigning word
+        mole.userData.isUp = false; // Will be set to true when animation completes
+        assignNewWord(mole);
+    } else {
+        updateMoleText(mole, '');
+        // Clear any stored interaction state
+        mole.userData.lastClicked = null;
+    }
+    
+    function update() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Simplified easing function for smoother performance on iPad
+        // Linear is perfectly fine for this mechanic
+        mole.position.y = startY + (targetY - startY) * progress;
+        
+        if (progress < 1) {
+            requestAnimationFrame(update);
+        } else {
+            // Animation is complete
+            mole.userData.isMoving = false;
+            mole.userData.isUp = goingUp;
+            
+            // Complete cleanup when going down
+            if (!goingUp) {
+                // Hide the mole completely
+                mole.visible = false;
+                
+                // Reset all interaction state
+                mole.userData.clickId = null;
+                mole.userData.lastClicked = null;
+                
+                // Log that this mole animation cycle is complete
+                console.log('Mole animation complete - mole is down and reset');
+            } else {
+                // Log that mole is now up and ready for interaction
+                console.log('Mole is now up with ID:', mole.userData.clickId);
+            }
+        }
+    }
+    
+    // Start the animation
+    update();
+}
+
+// Optimize game loop timing for iPad
 function gameLoop() {
     if (!gameActive) return;
     
@@ -1193,6 +1516,9 @@ function gameLoop() {
         const moleId = Date.now(); // Create a unique ID for this mole appearance
         randomMole.userData.currentAppearanceId = moleId;
         
+        // On iPad, slightly shorter appearance time for better pacing
+        const appearanceTime = 1400; // Was 1500ms
+        
         setTimeout(() => {
             // Only hide if this is still the same appearance cycle and the mole is still up
             if (randomMole.userData.currentAppearanceId === moleId && 
@@ -1202,11 +1528,12 @@ function gameLoop() {
                 console.log('Auto-hiding mole that was not clicked:', randomMole);
                 animateMole(randomMole, false);
             }
-        }, 1500);
+        }, appearanceTime);
     }
     
     // Schedule the next game loop iteration with a random delay
-    const nextDelay = 1500 + Math.random() * 1000; // Between 1.5 and 2.5 seconds
+    // Slightly faster pace for iPad touch gameplay 
+    const nextDelay = 1200 + Math.random() * 800; // Was 1500 + Math.random() * 1000
     setTimeout(gameLoop, nextDelay);
 }
 
@@ -1819,4 +2146,199 @@ console.log("Game initialization complete - running latest version");
 // Handle window resize to reposition overlay markers
 window.addEventListener('resize', function() {
     positionDecorativeOverlay();
+});
+
+// Add iPad detection and optimization
+const deviceInfo = {
+    isIOS: false,
+    isIPad: false,
+    isTouch: false,
+    initialize: function() {
+        // Check if the device is iOS
+        this.isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || 
+                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        
+        // More specific check for iPad
+        this.isIPad = this.isIOS && 
+                     (navigator.platform === 'iPad' || 
+                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && 
+                      window.innerWidth > 750));
+                      
+        // General touch device detection
+        this.isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        
+        console.log(`Device detection: iOS=${this.isIOS}, iPad=${this.isIPad}, Touch=${this.isTouch}`);
+        
+        // Add class to body for CSS targeting
+        if (this.isIPad) document.body.classList.add('ipad-device');
+        if (this.isIOS) document.body.classList.add('ios-device');
+        if (this.isTouch) document.body.classList.add('touch-device');
+        
+        // Apply device-specific optimizations
+        this.applyOptimizations();
+    },
+    applyOptimizations: function() {
+        if (this.isIPad) {
+            // iPad-specific optimizations
+            
+            // Make hitboxes larger
+            proximityThreshold = 200; // Larger hit detection area
+            
+            // Apply iPad-specific CSS
+            const ipadStyles = document.createElement('style');
+            ipadStyles.textContent = `
+                /* iPad-specific style tweaks */
+                #game-title-display {
+                    font-size: 36px !important;
+                    padding: 15px 20px !important;
+                }
+                
+                .hole-marker {
+                    width: 180px !important;
+                    height: 180px !important;
+                }
+                
+                .streak-bonus {
+                    font-size: 42px !important;
+                    padding: 25px 35px !important;
+                }
+            `;
+            document.head.appendChild(ipadStyles);
+            
+            // Enlarge selectable areas
+            document.querySelectorAll('.game-option').forEach(option => {
+                option.style.padding = '20px 25px';
+                option.style.fontSize = '28px';
+                option.style.margin = '15px';
+            });
+        }
+    }
+};
+
+// Initialize device detection after DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    deviceInfo.initialize();
+    
+    // Reconfigure overlay positioning for iPad
+    if (deviceInfo.isIPad) {
+        // Apply special positioning for iPad
+        setTimeout(() => {
+            positionDecorativeOverlayForIPad();
+        }, 600);
+    }
+});
+
+// Improved positioning function specifically for iPad
+function positionDecorativeOverlayForIPad() {
+    if (!window.holePositions || window.holePositions.length === 0) {
+        console.log('No hole positions available');
+        return;
+    }
+    
+    // Get screen coordinates of holes
+    const holeScreenPositions = window.holePositions.map(pos => {
+        const vector = new THREE.Vector3(pos.x, pos.y, pos.z);
+        vector.project(camera);
+        
+        return {
+            x: (vector.x * 0.5 + 0.5) * window.innerWidth,
+            y: -(vector.y * 0.5 - 0.5) * window.innerHeight,
+            description: pos.description
+        };
+    });
+    
+    console.log('iPad hole screen positions:', holeScreenPositions);
+    
+    // Position the markers in the overlay to match hole positions
+    const markers = document.querySelectorAll('.hole-marker');
+    
+    // Different hole sizes - even larger for iPad
+    const iPadHoleSize = 380; // Larger size for all holes on iPad
+    
+    holeScreenPositions.forEach((pos, index) => {
+        if (markers[index]) {
+            let posX = pos.x;
+            let posY = pos.y;
+            
+            // Special positioning adjustments for iPad
+            // Different offsets for different corners to optimize coverage
+            if (index === 0) { // back left
+                posX -= 10;
+                posY -= 5;
+            } else if (index === 1) { // back right
+                posX += 10;
+                posY -= 5;
+            } else if (index === 2) { // front left
+                posX -= 10;
+                posY += 15;
+            } else if (index === 3) { // front right
+                posX += 20;
+                posY += 35;
+            }
+            
+            const offsetX = iPadHoleSize / 2;
+            const offsetY = iPadHoleSize / 2;
+            
+            const percentX = ((posX - offsetX) / window.innerWidth) * 100;
+            const percentY = ((posY - offsetY) / window.innerHeight) * 100;
+            
+            markers[index].style.left = percentX + '%';
+            markers[index].style.top = percentY + '%';
+            markers[index].style.width = iPadHoleSize + 'px';
+            markers[index].style.height = iPadHoleSize + 'px';
+            
+            // Add subtle color variations to each dirt hole for realism
+            const brownBase = [155, 118, 83];
+            const randomOffset = [
+                Math.floor(Math.random() * 10) - 5,
+                Math.floor(Math.random() * 8) - 4,
+                Math.floor(Math.random() * 6) - 3
+            ];
+            
+            const randomBrown = [
+                Math.max(140, Math.min(170, brownBase[0] + randomOffset[0])),
+                Math.max(100, Math.min(130, brownBase[1] + randomOffset[1])),
+                Math.max(70, Math.min(100, brownBase[2] + randomOffset[2]))
+            ];
+            
+            markers[index].style.backgroundColor = `rgb(${randomBrown[0]}, ${randomBrown[1]}, ${randomBrown[2]})`;
+        }
+    });
+    
+    console.log("Positioned overlay for iPad");
+}
+
+// Enhance window resize handling for iPad
+window.addEventListener('resize', function() {
+    // Recalculate positions based on device
+    if (deviceInfo.isIPad) {
+        positionDecorativeOverlayForIPad();
+    } else {
+        positionDecorativeOverlay();
+    }
+    
+    // Update renderer size
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
+
+// Add orientation change handling for iPad
+window.addEventListener('orientationchange', function() {
+    console.log('Orientation changed');
+    
+    // Wait for orientation change to complete
+    setTimeout(() => {
+        // Update renderer size
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        
+        // Reposition overlay
+        if (deviceInfo.isIPad) {
+            positionDecorativeOverlayForIPad();
+        } else {
+            positionDecorativeOverlay();
+        }
+    }, 300);
 });
