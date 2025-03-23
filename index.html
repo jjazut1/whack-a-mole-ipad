@@ -1,0 +1,356 @@
+<html>
+<head>
+    <title>3D Whack-a-Mole</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <style>
+        /* Set base background color */
+        html, body {
+            background-color: #87CEEB; /* Sky blue instead of black */
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: none; /* Disable touch actions at the root level */
+            -webkit-user-select: none; /* Prevent text selection on iOS */
+            -webkit-touch-callout: none; /* Prevent callout on long press */
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+            font-family: 'Comic Neue', sans-serif;
+        }
+        
+        /* Hide UI elements as you already have */
+        [data-version-indicator],
+        [data-progress-bar],
+        [data-instructions],
+        .scoreElement,
+        .timerElement,
+        .instructionsElement,
+        #scoreElement,
+        #timerElement,
+        #instructionsElement {
+            display: none !important;
+        }
+        
+        /* Grass overlay styles */
+        body {
+            position: relative;
+            /* Ensure body creates a stacking context */
+            z-index: 0;
+            /* Use a transparent background */
+            background: transparent;
+        }
+        
+        /* Canvas container to control Three.js canvas position */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Make sure this z-index is higher than both the body and the grass overlay */
+            z-index: 3;
+            transform: translateZ(0);
+            background: transparent;
+            touch-action: none; /* Prevent browser's default touch actions */
+            cursor: pointer; /* Show pointer cursor to indicate clickable */
+        }
+        
+        #canvas-container canvas {
+            touch-action: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        
+        #grassOverlay {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 93%; /* Slightly increased width to eliminate border */
+            height: 83%; /* Slightly increased height to eliminate border */
+            background-image: url('https://jjazut1.github.io/image-hosting/grassv2nbg.png');
+            background-size: cover;
+            background-position: bottom center;
+            opacity: 1;
+            /* Let clicks pass through to the game */
+            pointer-events: none; 
+            /* Lower z-index to place below the canvas */
+            z-index: 1;
+            transform-origin: center bottom;
+            /* Adjust scale to match the hole positions and move down 13px */
+            transform: translateX(-50%) translateY(13px) scale(1.1);
+            /* Ensure no visible borders with extended margin */
+            margin: 0 -3px -3px -3px;
+        }
+        
+        /* Add hole markers for alignment - repurposing as dirt holes */
+        .hole-marker {
+            position: absolute;
+            width: 300px; /* Reverted to previous size */
+            height: 300px; /* Reverted to previous size */
+            background-color: #9b7653; /* brown color for dirt */
+            border: none; /* Remove the dashed border */
+            border-radius: 50%;
+            /* Empty content - no numbers */
+            color: transparent;
+            font-size: 0px; /* Hide text */
+            pointer-events: none; /* Let clicks pass through */
+            z-index: 0.5; /* Between body (0) and grass overlay (1) */
+            /* Make hole markers visible */
+            display: block;
+            /* Add slight shadow for depth - reduced intensity */
+            box-shadow: inset 0px 10px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Special larger size for bottom right hole to cover the blue sky */
+        #marker4 {
+            width: 420px; 
+            height: 420px;
+        }
+        
+        /* Add a fallback image element in case background-image doesn't work */
+        #grassFallback {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 93%; /* Match the width of the overlay */
+            height: 83%; /* Match the height of the overlay */
+            z-index: 1; /* Same z-index as grassOverlay */
+            pointer-events: none;
+            opacity: 0.9;
+            transform: translateX(-50%) translateY(13px) scale(1.1);
+            /* Ensure no visible borders with extended margin */
+            margin: 0 -3px -3px -3px;
+            display: none; /* Hidden by default, will show via JS if needed */
+        }
+        
+        /* Game selection UI styles */
+        #game-selection {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 500px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            font-family: 'Comic Neue', sans-serif;
+        }
+        
+        #game-selection h1 {
+            text-align: center;
+            color: #4a7c59;
+            margin-top: 0;
+            font-size: 28px;
+        }
+        
+        .game-option {
+            display: block;
+            width: 100%;
+            background-color: #90EE90;
+            border: none;
+            border-radius: 15px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            font-family: inherit;
+        }
+        
+        .game-option:hover, .game-option:focus {
+            background-color: #7BC67B;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .game-option:active {
+            transform: translateY(1px);
+        }
+        
+        /* Game title display */
+        #game-title-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 28px;
+            font-weight: bold;
+            color: #00008B;
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.7);
+            z-index: 5;
+            text-align: center;
+            font-family: 'Comic Neue', sans-serif;
+            background-color: rgba(255, 255, 255, 0.5);
+            padding: 5px 15px;
+            border-radius: 10px;
+        }
+        
+        /* Streak bonus notification styles */
+        .streak-bonus {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: #FF5722; /* Single orange color instead of gradient */
+            color: white;
+            font-size: 32px; /* Smaller font size (was 48px) */
+            font-weight: bold;
+            font-family: 'Comic Neue', sans-serif;
+            padding: 10px 25px; /* Smaller padding */
+            border-radius: 15px;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+            z-index: 100;
+            opacity: 0;
+            transition: all 0.2s ease-out; /* Faster transition */
+            animation: none;
+            text-align: center;
+            -webkit-text-stroke: 1px black; /* Thinner stroke */
+        }
+        
+        .streak-bonus.active {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+            animation: pulse 0.3s ease infinite alternate; /* Faster pulse animation */
+        }
+        
+        @keyframes gradientAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            100% { transform: translate(-50%, -50%) scale(1.05); } /* Smaller scale change */
+        }
+    </style>
+</head>
+<body>
+    <!-- Game selection UI -->
+    <div id="game-selection">
+        <h1>Choose a Word Game</h1>
+        <button class="game-option" data-game="short_a">Short 'a' Words</button>
+        <button class="game-option" data-game="short_e">Short 'e' Words</button>
+        <button class="game-option" data-game="short_i">Short 'i' Words</button>
+        <button class="game-option" data-game="short_o">Short 'o' Words</button>
+        <button class="game-option" data-game="short_u">Short 'u' Words</button>
+        <button class="game-option" data-game="sh_words">Words with 'sh'</button>
+        <button class="game-option" data-game="ch_words">Words with 'ch'</button>
+        <button class="game-option" data-game="th_words">Words with 'th'</button>
+        <button class="game-option" data-game="wh_words">Words with 'wh'</button>
+    </div>
+    
+    <!-- Game title display -->
+    <div id="game-title-display"></div>
+    
+    <!-- Streak counter display has been removed -->
+
+    <!-- Add hole markers for alignment - these are the dirt holes -->
+    <div class="hole-marker" id="marker1">1</div>
+    <div class="hole-marker" id="marker2">2</div>
+    <div class="hole-marker" id="marker3">3</div>
+    <div class="hole-marker" id="marker4">4</div>
+    
+    <!-- Add this div for the grass overlay -->
+    <div id="grassOverlay"></div>
+    
+    <!-- Fallback image element -->
+    <img id="grassFallback" src="https://jjazut1.github.io/image-hosting/grassv2nbg.png" alt="Grass overlay">
+    
+    <!-- Add a container for the Three.js canvas -->
+    <div id="canvas-container"></div>
+    
+    <script>
+    // Quick check to see if the background image loaded
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            const overlay = document.getElementById('grassOverlay');
+            const fallback = document.getElementById('grassFallback');
+            
+            // Check if we can detect the background image
+            const overlayStyle = getComputedStyle(overlay);
+            if (!overlayStyle.backgroundImage || overlayStyle.backgroundImage === 'none') {
+                console.log('Background image not loading, showing fallback');
+                fallback.style.display = 'block';
+            } else {
+                console.log('Background image loaded successfully');
+            }
+
+            // Position hole markers as dirt holes
+            // This will be called automatically by positionDecorativeOverlay() in script.js
+        }, 1000);
+        
+        // Add debugging for touch events
+        ['touchstart', 'touchend', 'touchmove', 'touchcancel'].forEach(function(eventType) {
+            document.addEventListener(eventType, function(e) {
+                console.log('Touch event detected:', eventType, e.touches ? e.touches.length : 0);
+            }, { passive: true });
+        });
+        
+        // Prevent touchmove default behavior to avoid scrolling/zooming
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+        
+        // Handle iOS specific behaviors
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+        
+        // Fix for iOS "double-tap to zoom"
+        document.documentElement.addEventListener('touchend', function(e) {
+            const now = Date.now();
+            const DOUBLE_TAP_THRESHOLD = 300;
+            if (now - lastTouchEnd <= DOUBLE_TAP_THRESHOLD) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+        
+        // Track last touch end time for double-tap detection
+        let lastTouchEnd = 0;
+        
+        // Special handling for iPadOS
+        if (navigator.userAgent.match(/iPad/i) || 
+            (navigator.userAgent.match(/Macintosh/i) && navigator.maxTouchPoints > 0)) {
+            console.log('iPad detected - adding special touch handling');
+            
+            // Apply specific iPad touch handling
+            document.body.style.touchAction = 'none';
+            document.getElementById('canvas-container').style.touchAction = 'none';
+            
+            // Force touch events to be captured by the canvas
+            const canvasContainer = document.getElementById('canvas-container');
+            canvasContainer.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                console.log('Canvas container touch captured');
+                // Manually dispatch to make sure it's handled
+                setTimeout(function() {
+                    const canvas = canvasContainer.querySelector('canvas');
+                    if (canvas) {
+                        const event = new TouchEvent('touchstart', {
+                            bubbles: true,
+                            cancelable: true,
+                            view: window,
+                            touches: e.touches,
+                            targetTouches: e.targetTouches,
+                            changedTouches: e.changedTouches
+                        });
+                        canvas.dispatchEvent(event);
+                    }
+                }, 0);
+            }, { passive: false });
+        }
+    });
+    </script>
+    
+    <script type="module" src="script.js"></script>
+</body>
+</html>
