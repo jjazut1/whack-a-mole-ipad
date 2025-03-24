@@ -128,7 +128,7 @@ function initGameSelection() {
             incorrectWords = generateIncorrectWords(selectedGame);
             
             // Hide selection UI
-            gameSelection.style.display = 'none';
+            onGameOptionSelected(selectedGame);
             
             // Set and show the game title
             gameTitleDisplay.textContent = wordCategories[selectedGame].title;
@@ -1820,3 +1820,24 @@ console.log("Game initialization complete - running latest version");
 window.addEventListener('resize', function() {
     positionDecorativeOverlay();
 });
+
+// When a game option is selected, this needs to happen:
+function onGameOptionSelected(selectedGame) {
+  // Get the game selection popup
+  const gameSelection = document.getElementById('game-selection');
+  
+  // Use multiple CSS properties to ensure it's completely hidden
+  gameSelection.style.display = 'none';
+  gameSelection.style.visibility = 'hidden';
+  gameSelection.style.opacity = '0';
+  gameSelection.style.pointerEvents = 'none';
+  
+  // Also try adding a CSS class for redundancy
+  gameSelection.classList.add('hidden');
+  
+  // Force a browser reflow to ensure updates are applied
+  void gameSelection.offsetHeight;
+  
+  // Continue with starting the game
+  // ...
+}
