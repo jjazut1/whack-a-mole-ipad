@@ -645,6 +645,8 @@ function handleInteraction(event) {
                     Math.pow(moleScreenY - clientY, 2)
                 );
                 
+                console.log(`Mole at (${moleScreenX}, ${moleScreenY}) is ${distance} pixels away from touch point (${clientX}, ${clientY})`);
+                
                 // Set a reasonable proximity threshold (in pixels)
                 const proximityThreshold = 150; // Larger for iPad
                 
