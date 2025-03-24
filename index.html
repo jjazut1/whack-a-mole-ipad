@@ -2,11 +2,9 @@
 <head>
     <title>3D Whack-a-Mole</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="format-detection" content="telephone=no">
     <style>
         /* Set base background color */
         html, body {
@@ -149,7 +147,6 @@
             font-size: 28px;
         }
         
-        /* Improve touch targets for iPad */
         .game-option {
             display: block;
             width: 100%;
@@ -157,39 +154,24 @@
             border: none;
             border-radius: 15px;
             padding: 15px;
-            margin: 15px 0;
-            font-size: 22px;
+            margin: 10px 0;
+            font-size: 18px;
             font-weight: bold;
             color: #333;
             cursor: pointer;
             transition: all 0.2s ease;
             text-align: left;
             font-family: inherit;
-            position: relative;
-            z-index: 15; /* Ensure buttons are above other elements */
-            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on iOS */
-            -webkit-touch-callout: none; /* Disable callout on long press */
-            min-height: 30px; /* Minimum height for better touch targets */
         }
         
-        /* Add active state for touch feedback */
-        .game-option:active {
+        .game-option:hover, .game-option:focus {
             background-color: #7BC67B;
-            transform: scale(0.98);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
         
-        /* Specific iPad optimizations */
-        @media only screen and (min-device-width: 768px) and (max-device-width: 1024px) {
-            .game-option {
-                font-size: 28px;
-                padding: 20px;
-                margin: 20px 0;
-                min-height: 40px;
-            }
-            
-            #game-selection h1 {
-                font-size: 36px;
-            }
+        .game-option:active {
+            transform: translateY(1px);
         }
         
         /* Game title display */
@@ -254,15 +236,15 @@
     <!-- Game selection UI -->
     <div id="game-selection">
         <h1>Choose a Word Game</h1>
-        <button class="game-option" data-game="short_a" type="button">Short 'a' Words</button>
-        <button class="game-option" data-game="short_e" type="button">Short 'e' Words</button>
-        <button class="game-option" data-game="short_i" type="button">Short 'i' Words</button>
-        <button class="game-option" data-game="short_o" type="button">Short 'o' Words</button>
-        <button class="game-option" data-game="short_u" type="button">Short 'u' Words</button>
-        <button class="game-option" data-game="sh_words" type="button">Words with 'sh'</button>
-        <button class="game-option" data-game="ch_words" type="button">Words with 'ch'</button>
-        <button class="game-option" data-game="th_words" type="button">Words with 'th'</button>
-        <button class="game-option" data-game="wh_words" type="button">Words with 'wh'</button>
+        <button class="game-option" data-game="short_a">Short 'a' Words</button>
+        <button class="game-option" data-game="short_e">Short 'e' Words</button>
+        <button class="game-option" data-game="short_i">Short 'i' Words</button>
+        <button class="game-option" data-game="short_o">Short 'o' Words</button>
+        <button class="game-option" data-game="short_u">Short 'u' Words</button>
+        <button class="game-option" data-game="sh_words">Words with 'sh'</button>
+        <button class="game-option" data-game="ch_words">Words with 'ch'</button>
+        <button class="game-option" data-game="th_words">Words with 'th'</button>
+        <button class="game-option" data-game="wh_words">Words with 'wh'</button>
     </div>
     
     <!-- Game title display -->

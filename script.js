@@ -11,46 +11,20 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerH
 const renderer = new THREE.WebGLRenderer({ 
     antialias: true, 
     alpha: true,
-    premultipliedAlpha: false, // Ensure proper alpha blending
-    powerPreference: 'high-performance' // Add performance preference for mobile devices
+    premultipliedAlpha: false // Ensure proper alpha blending
 }); 
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.sortObjects = true;
 renderer.setClearColor(0x000000, 0); // Set to fully transparent
 renderer.setClearAlpha(0); // Explicitly set alpha to 0
-renderer.setPixelRatio(window.devicePixelRatio || 1); // Better handling of high-DPI screens like iPad
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
 // Configure canvas for better touch events
 const canvas = renderer.domElement;
 canvas.style.touchAction = 'none'; // Disable browser touch actions
-// Add all touch event listeners with passive: false to ensure preventDefault works
-['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(eventName => {
-    canvas.addEventListener(eventName, function(e) {
-        e.preventDefault(); // Prevent default touch behavior like scrolling
-    }, { passive: false });
-});
-
-// Add meta viewport tag to prevent unwanted zooming on iPad
-function addViewportMeta() {
-    // Check if viewport meta tag already exists
-    let metaViewport = document.querySelector('meta[name="viewport"]');
-    
-    if (!metaViewport) {
-        // Create and add the viewport meta tag
-        metaViewport = document.createElement('meta');
-        metaViewport.name = 'viewport';
-        document.head.appendChild(metaViewport);
-    }
-    
-    // Set viewport properties optimized for games on touch devices
-    metaViewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
-    
-    console.log("Viewport meta tag configured for touch devices");
-}
-
-// Call immediately
-addViewportMeta();
+canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault(); // Prevent default touch behavior
+}, { passive: false });
 
 // Initialize arrays and game state
 const moles = [];
@@ -133,236 +107,59 @@ function shuffleArray(array) {
     return newArray;
 }
 
-// Add iPad-specific CSS
-function addTouchStyles() {
-    const styleEl = document.createElement('style');
-    styleEl.textContent = `
-        /* Larger UI elements for touch */
-        #game-selection .game-option {
-            padding: 15px 20px;
-            margin: 10px;
-            font-size: 24px;
-            border-radius: 10px;
-            min-width: 200px;
-            cursor: pointer;
-            transition: transform 0.1s ease-out;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        #game-selection .game-option:active {
-            transform: scale(0.95);
-        }
-        
-        /* Touch ripple animation */
-        @keyframes rippleAnimation {
-            from { transform: scale(0); opacity: 1; }
-            to { transform: scale(2); opacity: 0; }
-        }
-        
-        .touch-ripple {
-            position: absolute;
-            background-color: rgba(255, 255, 255, 0.6);
-            border-radius: 50%;
-            pointer-events: none;
-            animation: rippleAnimation 0.4s ease-out forwards;
-        }
-        
-        /* Streak bonus animation for touch devices */
-        .streak-bonus {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.5);
-            background-color: #FF5722;
-            color: white;
-            font-size: 36px;
-            font-weight: bold;
-            padding: 20px 30px;
-            border-radius: 15px;
-            opacity: 0;
-            z-index: 1000;
-            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-            pointer-events: none;
-        }
-        
-        .streak-bonus.active {
-            transform: translate(-50%, -50%) scale(1);
-            opacity: 1;
-        }
-        
-        /* Hole marker size optimization for iPad */
-        .hole-marker {
-            border-radius: 50%;
-            position: absolute;
-            width: 150px;
-            height: 150px;
-        }
-        
-        /* Increase size of UI elements for iPad */
-        @media (pointer: coarse) {
-            #game-title-display {
-                font-size: 32px !important;
-            }
-            
-            #instructionsElement {
-                font-size: 28px !important;
-                padding: 15px !important;
-            }
-        }
-    `;
-    document.head.appendChild(styleEl);
-    console.log("Added touch-optimized styles");
-}
-
-// Call immediately
-addTouchStyles();
-
-// Modify game selection UI setup for better touch interaction - fixing the issue with buttons not responding
+// Set up game selection UI
 function initGameSelection() {
-    console.log("Initializing game selection UI...");
-    
     const gameSelection = document.getElementById('game-selection');
-    if (!gameSelection) {
-        console.error("Game selection element not found!");
-        return;
-    }
-    
-    // Clear any existing handlers that might be interfering
-    const gameOptions = gameSelection.querySelectorAll('.game-option');
-    console.log(`Found ${gameOptions.length} game options`);
+    const gameOptions = document.querySelectorAll('.game-option');
+    const gameTitleDisplay = document.getElementById('game-title-display');
     
     // Initially hide title display and show selection UI
-    const gameTitleDisplay = document.getElementById('game-title-display');
-    if (gameTitleDisplay) {
-        gameTitleDisplay.style.display = 'none';
-    }
+    gameTitleDisplay.style.display = 'none';
     gameSelection.style.display = 'block';
     
-    // Apply iPad-friendly styles
-    gameSelection.style.padding = '20px';
-    gameSelection.style.maxWidth = '90%';
-    gameSelection.style.margin = '0 auto';
-    if (gameTitleDisplay) {
-        gameTitleDisplay.style.fontSize = '28px';
-        gameTitleDisplay.style.padding = '10px';
-        gameTitleDisplay.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
-    }
-    
-    // Setup direct click/touch handlers on all game options
+    // Set up event listeners for game options
     gameOptions.forEach(option => {
-        // Remove all existing event listeners to prevent duplicates
-        const newOption = option.cloneNode(true);
-        option.parentNode.replaceChild(newOption, option);
-        
-        // Log for debugging
-        console.log(`Setting up handler for ${newOption.textContent} (${newOption.getAttribute('data-game')})`);
-        
-        // Add multiple event listeners for maximum compatibility
-        ['click', 'touchend'].forEach(eventType => {
-            newOption.addEventListener(eventType, function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                // Log that we received the event
-                console.log(`${eventType} event received on ${this.textContent}`);
-                
-                // Create visual feedback
-                this.style.backgroundColor = '#7BC67B';
-                
-                // Get the game category from the data attribute
-                const selectedGame = this.getAttribute('data-game');
-                console.log(`Selected game: ${selectedGame}`);
-                
-                if (!selectedGame) {
-                    console.error("No game selected - data-game attribute missing");
-                    return;
-                }
-                
-                // Set current category
-                currentCategory = selectedGame;
-                correctWords = wordCategories[selectedGame].words;
-                incorrectWords = generateIncorrectWords(selectedGame);
-                
-                // Hide selection UI
-                gameSelection.style.display = 'none';
-                
-                // Set and show the game title
-                if (gameTitleDisplay) {
-                    gameTitleDisplay.textContent = wordCategories[selectedGame].title;
-                    gameTitleDisplay.style.display = 'block';
-                }
-                
-                // Start the game after a short delay to allow UI updates
-                setTimeout(() => {
-                    startGame();
-                }, 50);
-            }, { passive: false });
+        option.addEventListener('click', function() {
+            const selectedGame = this.getAttribute('data-game');
+            
+            // Set current category
+            currentCategory = selectedGame;
+            correctWords = wordCategories[selectedGame].words;
+            incorrectWords = generateIncorrectWords(selectedGame);
+            
+            // Hide selection UI
+            gameSelection.style.display = 'none';
+            
+            // Set and show the game title
+            gameTitleDisplay.textContent = wordCategories[selectedGame].title;
+            gameTitleDisplay.style.display = 'block';
+            
+            // Start the game
+            startGame();
         });
-        
-        // Also add touchstart for feedback
-        newOption.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            console.log('Touch start on game option');
-            this.style.transform = 'scale(0.95)';
-            this.style.backgroundColor = '#7BC67B';
-        }, { passive: false });
     });
-    
-    console.log("Game selection initialization complete");
 }
 
-// Call initGameSelection when DOM is completely loaded and after a slight delay to ensure everything is ready
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM content loaded");
-    
-    // First detect device - needed for other optimizations
-    if (typeof deviceInfo !== 'undefined') {
-        deviceInfo.initialize();
-    }
-    
-    // Initialize game selection with a slight delay to ensure DOM is completely ready
-    setTimeout(() => {
-        initGameSelection();
-        console.log("Game selection initialized after delay");
-    }, 300);
-});
+// Call initGameSelection after DOM is loaded
+document.addEventListener('DOMContentLoaded', initGameSelection);
 
 // Modified handleInteraction function to check for game selection screen
 const originalHandleInteraction = window.handleInteraction || function() {};
 window.handleInteraction = function(event) {
-    // Check if interaction should be blocked during game selection
     const gameSelection = document.getElementById('game-selection');
-    const isGameSelectionVisible = gameSelection && (gameSelection.style.display === 'block' || getComputedStyle(gameSelection).display !== 'none');
     
-    if (isGameSelectionVisible) {
-        // If we're touching a game option, let it propagate to the button's handler
-        if (event.type.startsWith('touch') && event.target.closest('.game-option')) {
-            console.log('Touch on game option detected - letting button handler process it');
-            // We'll let the button's own handler deal with it
-            return;
-        }
-        
-        // Prevent default touchstart behavior when game selection is visible
-        if (event.type.startsWith('touch')) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
-        console.log('Game selection is visible, blocking general interaction');
+    // If game selection is visible, don't handle the interaction
+    if (gameSelection && gameSelection.style.display !== 'none') {
         return;
     }
     
-    // If game is not active but game selection is NOT visible, show it
+    // If game is not active but selection is hidden, it's either a new game or game over screen
     if (!gameActive) {
-        // Only show game selection if we're not already showing it and not during game
-        if (gameSelection && gameSelection.style.display === 'none') {
-            gameSelection.style.display = 'block';
-            console.log('Game is not active, showing game selection');
-            
-            // Hide instructions when showing game selection
-            if (document.getElementById('instructionsElement')) {
-                document.getElementById('instructionsElement').style.display = 'none';
-            }
+        const gameSelection = document.getElementById('game-selection');
+        gameSelection.style.display = 'block';
+        
+        if (document.getElementById('instructionsElement')) {
+            document.getElementById('instructionsElement').style.display = 'none';
         }
         return;
     }
@@ -581,24 +378,6 @@ function positionDecorativeOverlay() {
         return;
     }
     
-    console.log('Positioning dirt holes based on mole hole positions');
-    console.log(`Window dimensions: ${window.innerWidth}x${window.innerHeight}`);
-    
-    // Calculate scale factors based on screen size to help with responsiveness
-    const isLandscape = window.innerWidth > window.innerHeight;
-    const baseWidth = 1024; // Base width for iPad
-    const scaleFactorX = window.innerWidth / baseWidth;
-    
-    // Apply a stronger scale factor for small screens like phones
-    let screenSizeFactor = 1;
-    if (window.innerWidth < 600) {
-        screenSizeFactor = 0.8; // Smaller adjustments for phones
-    } else if (window.innerWidth > 1200) {
-        screenSizeFactor = 1.2; // Larger adjustments for big iPads
-    }
-    
-    console.log(`Screen orientation: ${isLandscape ? 'Landscape' : 'Portrait'}, Scale factors: ${scaleFactorX}, ${screenSizeFactor}`);
-    
     // Get screen coordinates of holes
     const holeScreenPositions = window.holePositions.map(pos => {
         const vector = new THREE.Vector3(pos.x, pos.y, pos.z);
@@ -611,16 +390,14 @@ function positionDecorativeOverlay() {
         };
     });
     
-    console.log('Original hole screen positions:', holeScreenPositions);
+    console.log('Hole screen positions:', holeScreenPositions);
     
     // Position the markers in the overlay to match hole positions
     const markers = document.querySelectorAll('.hole-marker');
-    console.log(`Found ${markers.length} dirt hole markers to position`);
     
-    // Different hole sizes for better perspective
-    const backHoleSize = 280;      // Slightly smaller for back holes
-    const frontHoleSize = 320;     // Slightly larger for front holes
-    const largeHoleSize = 380;     // Larger size for bottom right hole
+    // Different hole sizes
+    const standardHoleSize = 300; // Standard size for most holes
+    const largeHoleSize =380;    // Larger size for bottom right hole
     
     holeScreenPositions.forEach((pos, index) => {
         if (markers[index]) {
@@ -630,38 +407,14 @@ function positionDecorativeOverlay() {
             let posY = pos.y;
             let holeSize;
             
-            // Custom position adjustments for each hole
-            switch(index) {
-                case 0: // Back Left
-                    posX -= 20 * scaleFactorX * screenSizeFactor; // Shift left
-                    posY += 35 * screenSizeFactor; // Shift down
-                    holeSize = backHoleSize * scaleFactorX;
-                    break;
-                case 1: // Back Right
-                    posX += 25 * scaleFactorX * screenSizeFactor; // Shift right
-                    posY += 35 * screenSizeFactor; // Shift down
-                    holeSize = backHoleSize * scaleFactorX;
-                    break;
-                case 2: // Front Left
-                    posX -= 15 * scaleFactorX * screenSizeFactor; // Shift left
-                    posY += 5 * screenSizeFactor; // Slight shift down
-                    holeSize = frontHoleSize * scaleFactorX;
-                    break;
-                case 3: // Bottom right hole - keep existing adjustments
-                    posX += 15 * scaleFactorX * screenSizeFactor; // Shift right to move toward the bottom right corner
-                    posY += 25 * screenSizeFactor; // Shift down to better cover the blue sky
-                    holeSize = largeHoleSize * scaleFactorX;
-                    break;
-                default:
-                    holeSize = frontHoleSize * scaleFactorX;
-            }
-            
-            // Apply any custom adjustments if provided through the console
-            if (window.customDirtAdjustments && window.customDirtAdjustments[index]) {
-                const custom = window.customDirtAdjustments[index];
-                if (custom.x !== undefined) posX += custom.x;
-                if (custom.y !== undefined) posY += custom.y;
-                console.log(`Applied custom adjustment to hole ${index}: x:${custom.x}, y:${custom.y}`);
+            // Special handling for bottom right hole (index 3)
+            if (index === 3) {
+                posX += 15; // Shift right to move toward the bottom right corner
+                posY = pos.y + 25; // Shift down to better cover the blue sky
+                holeSize = largeHoleSize;
+            } else {
+                posY = pos.y;
+                holeSize = standardHoleSize;
             }
             
             // Calculate offsets based on the specific hole size
@@ -673,9 +426,6 @@ function positionDecorativeOverlay() {
             
             markers[index].style.left = percentX + '%';
             markers[index].style.top = percentY + '%';
-            
-            // Log the final position for debugging
-            console.log(`Positioned dirt hole ${index} (${pos.description}): Original pos [${pos.x}, ${pos.y}], Adjusted [${posX}, ${posY}], Final [${percentX}%, ${percentY}%]`);
             
             // Add subtle color variations to each dirt hole for realism
             // Create slightly different brown shades for each hole
@@ -699,26 +449,7 @@ function positionDecorativeOverlay() {
 
 // Call positionDecorativeOverlay on load to ensure dirt holes are visible
 window.addEventListener('load', function() {
-    // First positioning attempt
     setTimeout(positionDecorativeOverlay, 500);
-    
-    // Second positioning attempt with slightly longer delay to ensure everything is ready
-    setTimeout(positionDecorativeOverlay, 1000);
-    
-    // Force a third positioning attempt to ensure alignment is fixed
-    setTimeout(function() {
-        console.log("Forcing final dirt hole positioning");
-        positionDecorativeOverlay();
-        
-        // Also try to force a redraw of the markers to ensure they're correctly positioned
-        const markers = document.querySelectorAll('.hole-marker');
-        markers.forEach(marker => {
-            marker.style.display = 'none';
-            // Force browser to recalculate layout
-            void marker.offsetHeight;
-            marker.style.display = 'block';
-        });
-    }, 1500);
 });
 
 // Initialize scene
@@ -774,50 +505,24 @@ function preventDefaultTouch(event) {
     event.stopPropagation();
 }
 
-// Enhanced touch state tracking
-const touchState = {
-    lastTouchTime: 0,
-    processingTouch: false,
-    touchTimeThreshold: 300, // ms threshold to prevent duplicate touch events
-    gameSelectionHandled: false // New flag to track if we've handled a game selection
-};
-
 // Handle both mouse clicks and touch events
 function handleInteraction(event) {
     console.log('Interaction detected:', event.type);
     
-    // Check if game selection is visible
-    const gameSelection = document.getElementById('game-selection');
-    const isGameSelectionVisible = gameSelection && (gameSelection.style.display === 'block' || getComputedStyle(gameSelection).display !== 'none');
+    // Create a unique ID for this interaction to prevent duplicate processing
+    const interactionId = Date.now();
     
-    console.log(`Game selection visibility: ${isGameSelectionVisible}`);
-    
-    // If game selection is visible, don't process game interactions
-    if (isGameSelectionVisible) {
-        console.log('Game selection is visible, not handling game interaction');
-        // Don't prevent default here to allow the game selection buttons to work
-        return;
+    // Store the current interaction ID to prevent duplicate processing
+    if (window.lastInteractionId && (interactionId - window.lastInteractionId) < 300) {
+        console.log('Ignoring rapid interaction');
+        return; // Ignore interactions that happen too quickly after another
     }
+    window.lastInteractionId = interactionId;
     
-    // Prevent any scrolling/zooming on iPad
-    if (event.type.startsWith('touch')) {
+    // Prevent default behavior for touch events to avoid scrolling/zooming
+    if (event.type === 'touchstart') {
         event.preventDefault();
         event.stopPropagation();
-        
-        // iPad-specific touch handling with debouncing
-        const now = Date.now();
-        if (now - touchState.lastTouchTime < touchState.touchTimeThreshold || touchState.processingTouch) {
-            console.log('Ignoring rapid touch - debounce protection');
-            return;
-        }
-        
-        touchState.lastTouchTime = now;
-        touchState.processingTouch = true;
-        
-        // Release touch lock after processing
-        setTimeout(() => {
-            touchState.processingTouch = false;
-        }, touchState.touchTimeThreshold);
     }
     
     if (!gameActive) {
@@ -882,10 +587,6 @@ function handleInteraction(event) {
         console.log('Hit detected on:', hitMole);
     }
     
-    // For touch events, use a larger hit area - especially on iPad
-    const isTouchEvent = event.type === 'touchstart';
-    const proximityThreshold = isTouchEvent ? 180 : 100; // Even larger for iPad touches (was 150)
-    
     // If a mole was hit
     if (hitMole && hitMole.userData && hitMole.userData.isUp && !hitMole.userData.isMoving) {
         console.log('Processing hit on mole:', hitMole);
@@ -925,7 +626,7 @@ function handleInteraction(event) {
             animateMole(hitMole, false);
         }, 50);
         
-    } else if (isTouchEvent) {
+    } else if (event.type === 'touchstart') {
         // Special handling for iPad touch - if no direct hit was detected
         // Find the closest visible mole to the touch point
         console.log('No direct hit - checking proximity for touch events');
@@ -938,7 +639,7 @@ function handleInteraction(event) {
                 // Project mole position to screen coordinates
                 const molePos = new THREE.Vector3(
                     mole.position.x,
-                    mole.position.y + 0.7, // Target higher on the mole for better touch targeting
+                    mole.position.y,
                     mole.position.z
                 );
                 molePos.project(camera);
@@ -953,6 +654,9 @@ function handleInteraction(event) {
                     Math.pow(moleScreenY - clientY, 2)
                 );
                 
+                // Set a reasonable proximity threshold (in pixels)
+                const proximityThreshold = 150; // Larger for iPad
+                
                 if (distance < proximityThreshold && distance < closestDistance) {
                     closestDistance = distance;
                     closestMole = mole;
@@ -966,9 +670,6 @@ function handleInteraction(event) {
             
             // Mark this mole as being hit to prevent duplicate hits
             closestMole.userData.isMoving = true;
-            
-            // Add visual feedback for touch at the touch point
-            createTouchFeedback(clientX, clientY);
             
             if (isCorrectWord) {
                 score += 10;
@@ -999,41 +700,15 @@ function handleInteraction(event) {
             setTimeout(() => {
                 animateMole(closestMole, false);
             }, 50);
-        } else {
-            // Provide visual feedback even when no mole is hit
-            createTouchFeedback(clientX, clientY);
         }
     }
-}
-
-// Add touch feedback function for better iPad interaction
-function createTouchFeedback(x, y) {
-    // Create a visual ripple effect at touch point
-    const ripple = document.createElement('div');
-    ripple.className = 'touch-ripple';
-    ripple.style.position = 'absolute';
-    ripple.style.left = (x - 30) + 'px';
-    ripple.style.top = (y - 30) + 'px';
-    ripple.style.width = '60px';
-    ripple.style.height = '60px';
-    ripple.style.borderRadius = '50%';
-    ripple.style.background = 'rgba(255, 255, 255, 0.6)';
-    ripple.style.transform = 'scale(0)';
-    ripple.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
-    ripple.style.zIndex = '1000';
-    ripple.style.pointerEvents = 'none';
-    document.body.appendChild(ripple);
     
-    // Trigger animation
+    // Clear the interaction ID after a delay to prevent issues with holding
     setTimeout(() => {
-        ripple.style.transform = 'scale(1)';
-        ripple.style.opacity = '0';
-    }, 10);
-    
-    // Remove after animation completes
-    setTimeout(() => {
-        document.body.removeChild(ripple);
-    }, 300);
+        if (window.lastInteractionId === interactionId) {
+            window.lastInteractionId = null;
+        }
+    }, 500);
 }
 
 // Show streak bonus celebration notification
@@ -1296,7 +971,7 @@ function assignNewWord(mole) {
     updateMoleText(mole, currentWord);
 }
 
-// Optimize the animateMole function for better iPad performance
+// Modify the animateMole function
 function animateMole(mole, goingUp) {
     // Ensure we don't double-animate
     if (mole.userData.isMoving && goingUp) return;
@@ -1305,18 +980,19 @@ function animateMole(mole, goingUp) {
     
     mole.userData.isMoving = true;
     
-    // Assign a unique ID to this mole instance when it comes up
+    // Assign a unique click ID to this mole instance when it comes up
+    // This helps prevent phantom clicks by ensuring each mole up/down cycle has a unique identifier
     if (goingUp) {
         mole.userData.clickId = Date.now() + Math.floor(Math.random() * 10000);
         console.log('Assigned new clickId:', mole.userData.clickId);
     }
     
     // Adjust the rise height for better visibility through the grass overlay
-    // Raised slightly higher on iPad for better touch targeting
-    const targetY = goingUp ? 0.8 : -1.8; // Even higher when up for iPad
+    // When up, mole should be clearly visible through the grass holes
+    // When down, mole should be completely hidden
+    const targetY = goingUp ? 0.7 : -1.8; // Slightly higher when up, lower when down
     const startY = mole.position.y;
-    // Faster animations for more responsive touch feel
-    const duration = 180; // Was 200ms, slightly faster
+    const duration = 200;
     const startTime = Date.now();
     
     if (goingUp) {
@@ -1335,9 +1011,12 @@ function animateMole(mole, goingUp) {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
         
-        // Simplified easing function for smoother performance on iPad
-        // Linear is perfectly fine for this mechanic
-        mole.position.y = startY + (targetY - startY) * progress;
+        // Easing function for smooth animation
+        const ease = progress < 0.5 
+            ? 2 * progress * progress 
+            : -1 + (4 - 2 * progress) * progress;
+            
+        mole.position.y = startY + (targetY - startY) * ease;
         
         if (progress < 1) {
             requestAnimationFrame(update);
@@ -1380,8 +1059,6 @@ function startGame() {
     
     // Reset any global interaction state
     window.lastInteractionId = null;
-    touchState.processingTouch = false;
-    touchState.lastTouchTime = 0;
     
     console.log("Starting new game - resetting all mole states");
     
@@ -1410,17 +1087,7 @@ function startGame() {
     
     // Update the instructions to match the current category
     if (instructionsElement) {
-        // Make instructions iPad-friendly with larger text and clear background
-        instructionsElement.style.fontSize = '28px';
-        instructionsElement.style.padding = '15px';
-        instructionsElement.style.background = 'rgba(0, 0, 0, 0.7)';
-        instructionsElement.style.borderRadius = '10px';
-        instructionsElement.style.maxWidth = '90%';
-        instructionsElement.style.textAlign = 'center';
-        instructionsElement.style.left = '50%';
-        instructionsElement.style.transform = 'translateX(-50%)';
-        
-        instructionsElement.innerHTML = `Tap the mole when you see a word from the "<b>${wordCategories[currentCategory].title}</b>" list!`;
+        instructionsElement.innerHTML = `Hit the mole when you see a word from the "${wordCategories[currentCategory].title}" list!`;
         instructionsElement.style.display = 'block';
         
         // Hide instructions after 3 seconds
@@ -1459,23 +1126,14 @@ function startGame() {
             });
             
             // Reset global interaction state again
-            touchState.processingTouch = false;
-            touchState.lastTouchTime = 0;
+            window.lastInteractionId = null;
             
-            // Show game over screen with iPad-friendly styling
-            instructionsElement.innerHTML = `<div style="font-size: 32px; margin-bottom: 15px;">Game Over!</div>
-                                           <div style="font-size: 28px; margin-bottom: 20px;">Final Score: ${score}</div>
-                                           <div style="font-size: 24px;">Tap anywhere to choose a new game</div>`;
+            // Show game over screen
+            instructionsElement.innerHTML = `Game Over! Final Score: ${score}<br>Click anywhere to choose a new game`;
             instructionsElement.style.display = 'block';
             
             // Hide the category title when the game is over
             document.getElementById('game-title-display').style.display = 'none';
-            
-            // For iPad - ensure the game selection will respond to the next tap
-            setTimeout(() => {
-                // Reset touch state after a delay
-                touchState.processingTouch = false;
-            }, 500);
         }
     }, 1000);
 }
@@ -1484,36 +1142,25 @@ function updateUI() {
     scoreElement.textContent = `Score: ${score}`;
     timerElement.textContent = `Time: ${timeRemaining}s`;
     
-    // Make UI elements larger for iPad
-    scoreElement.style.fontSize = '28px';
-    timerElement.style.fontSize = '28px';
-    
     // Ensure styling is maintained
     scoreElement.style.color = '#00008B'; // Dark blue
     scoreElement.style.fontWeight = 'bold';
-    scoreElement.style.textShadow = '2px 2px 4px rgba(255, 255, 255, 0.8)'; // Stronger shadow
+    scoreElement.style.textShadow = '1px 1px 2px rgba(255, 255, 255, 0.7)';
     scoreElement.style.zIndex = '5'; // Maintain higher z-index
     
     timerElement.style.color = '#00008B'; // Dark blue
     timerElement.style.fontWeight = 'bold';
-    timerElement.style.textShadow = '2px 2px 4px rgba(255, 255, 255, 0.8)'; // Stronger shadow
+    timerElement.style.textShadow = '1px 1px 2px rgba(255, 255, 255, 0.7)';
     timerElement.style.zIndex = '5'; // Maintain higher z-index
     
-    // Ensure game title is displayed correctly with larger font for iPad
+    // Ensure game title is displayed correctly
     const gameTitleDisplay = document.getElementById('game-title-display');
     if (gameTitleDisplay && gameActive) {
         gameTitleDisplay.textContent = wordCategories[currentCategory].title;
         gameTitleDisplay.style.display = 'block';
-        gameTitleDisplay.style.fontSize = '32px';
-        gameTitleDisplay.style.padding = '10px 15px';
-        gameTitleDisplay.style.background = 'rgba(255, 255, 255, 0.8)';
-        gameTitleDisplay.style.borderRadius = '10px';
-        gameTitleDisplay.style.color = '#00008B';
-        gameTitleDisplay.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 0.3)';
     }
 }
 
-// Optimize game loop timing for iPad
 function gameLoop() {
     if (!gameActive) return;
     
@@ -1546,9 +1193,6 @@ function gameLoop() {
         const moleId = Date.now(); // Create a unique ID for this mole appearance
         randomMole.userData.currentAppearanceId = moleId;
         
-        // On iPad, slightly shorter appearance time for better pacing
-        const appearanceTime = 1400; // Was 1500ms
-        
         setTimeout(() => {
             // Only hide if this is still the same appearance cycle and the mole is still up
             if (randomMole.userData.currentAppearanceId === moleId && 
@@ -1558,12 +1202,11 @@ function gameLoop() {
                 console.log('Auto-hiding mole that was not clicked:', randomMole);
                 animateMole(randomMole, false);
             }
-        }, appearanceTime);
+        }, 1500);
     }
     
     // Schedule the next game loop iteration with a random delay
-    // Slightly faster pace for iPad touch gameplay 
-    const nextDelay = 1200 + Math.random() * 800; // Was 1500 + Math.random() * 1000
+    const nextDelay = 1500 + Math.random() * 1000; // Between 1.5 and 2.5 seconds
     setTimeout(gameLoop, nextDelay);
 }
 
@@ -2177,258 +1820,3 @@ console.log("Game initialization complete - running latest version");
 window.addEventListener('resize', function() {
     positionDecorativeOverlay();
 });
-
-// Add iPad detection and optimization
-const deviceInfo = {
-    isIOS: false,
-    isIPad: false,
-    isTouch: false,
-    initialize: function() {
-        // Check if the device is iOS
-        this.isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || 
-                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        
-        // More specific check for iPad
-        this.isIPad = this.isIOS && 
-                     (navigator.platform === 'iPad' || 
-                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && 
-                      window.innerWidth > 750));
-                      
-        // General touch device detection
-        this.isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        
-        console.log(`Device detection: iOS=${this.isIOS}, iPad=${this.isIPad}, Touch=${this.isTouch}`);
-        
-        // Add class to body for CSS targeting
-        if (this.isIPad) document.body.classList.add('ipad-device');
-        if (this.isIOS) document.body.classList.add('ios-device');
-        if (this.isTouch) document.body.classList.add('touch-device');
-        
-        // Apply device-specific optimizations
-        this.applyOptimizations();
-    },
-    applyOptimizations: function() {
-        if (this.isIPad) {
-            // iPad-specific optimizations
-            
-            // Make hitboxes larger
-            proximityThreshold = 200; // Larger hit detection area
-            
-            // Apply iPad-specific CSS
-            const ipadStyles = document.createElement('style');
-            ipadStyles.textContent = `
-                /* iPad-specific style tweaks */
-                #game-title-display {
-                    font-size: 36px !important;
-                    padding: 15px 20px !important;
-                }
-                
-                .hole-marker {
-                    width: 180px !important;
-                    height: 180px !important;
-                }
-                
-                .streak-bonus {
-                    font-size: 42px !important;
-                    padding: 25px 35px !important;
-                }
-                
-                /* Fix for game selection on iPad */
-                #game-selection {
-                    background-color: rgba(255, 255, 255, 0.95) !important;
-                    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3) !important;
-                }
-                
-                #game-selection .game-option {
-                    font-size: 28px !important;
-                    padding: 20px 25px !important;
-                    margin: 20px 0 !important;
-                }
-            `;
-            document.head.appendChild(ipadStyles);
-            
-            // Enlarge selectable areas
-            document.querySelectorAll('.game-option').forEach(option => {
-                option.style.padding = '20px 25px';
-                option.style.fontSize = '28px';
-                option.style.margin = '15px';
-            });
-        }
-    }
-};
-
-// Failsafe function to ensure game options work on iPad
-function attachGameOptionHandlers() {
-    console.log("Setting up failsafe touch handlers for game options");
-    
-    // Direct DOM query for game options
-    const gameOptions = document.querySelectorAll('.game-option');
-    if (!gameOptions || gameOptions.length === 0) {
-        console.error("Game options not found in failsafe handler");
-        
-        // Schedule another attempt if none found
-        setTimeout(attachGameOptionHandlers, 500);
-        return;
-    }
-    
-    console.log(`Found ${gameOptions.length} game options in failsafe handler`);
-    
-    // Get the game selection container
-    const gameSelection = document.getElementById('game-selection');
-    
-    // Apply click handler to each option
-    gameOptions.forEach(button => {
-        // Remove any existing handlers by cloning and replacing
-        const newButton = button.cloneNode(true);
-        button.parentNode.replaceChild(newButton, button);
-        button = newButton;
-        
-        // Force higher z-index to ensure touch events reach the button
-        button.style.zIndex = '100';
-        button.style.position = 'relative';
-        
-        // Set pointer events to ensure clicks reach the button
-        button.style.pointerEvents = 'auto';
-        
-        // Add a direct click handler
-        button.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log(`Direct click on ${this.textContent}`);
-            
-            // Disable further touch processing temporarily
-            touchState.processingTouch = true;
-            
-            const selectedGame = this.getAttribute('data-game');
-            
-            if (!selectedGame || !wordCategories[selectedGame]) {
-                console.error(`Invalid game selected: ${selectedGame}`);
-                return;
-            }
-            
-            // Highlight button
-            this.style.backgroundColor = '#7BC67B';
-            
-            // Set game data
-            currentCategory = selectedGame;
-            correctWords = wordCategories[selectedGame].words;
-            incorrectWords = generateIncorrectWords(selectedGame);
-            
-            // Force the game selection to hide immediately
-            if (gameSelection) {
-                console.log('Forcing game selection to hide');
-                gameSelection.style.display = 'none';
-                // Use classList for better iOS compatibility
-                gameSelection.classList.add('hidden');
-                
-                // Also set CSS properties that can't be overridden
-                gameSelection.style.visibility = 'hidden';
-                gameSelection.style.opacity = '0';
-                gameSelection.style.pointerEvents = 'none';
-            }
-            
-            // Show game title
-            const gameTitleDisplay = document.getElementById('game-title-display');
-            if (gameTitleDisplay) {
-                gameTitleDisplay.textContent = wordCategories[selectedGame].title;
-                gameTitleDisplay.style.display = 'block';
-            }
-            
-            // Use a small delay before starting the game to ensure UI is updated
-            setTimeout(() => {
-                touchState.gameSelectionHandled = true;
-                touchState.processingTouch = false;
-                startGame();
-            }, 100);
-            
-            // Prevent any further processing of this event
-            return false;
-        };
-        
-        // Add separate touch handlers
-        ['touchstart', 'touchend'].forEach(eventType => {
-            button.addEventListener(eventType, function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                if (eventType === 'touchend') {
-                    console.log(`${eventType} on game option: ${this.textContent}`);
-                    this.onclick(e);
-                }
-                
-                // Add visual feedback for touchstart
-                if (eventType === 'touchstart') {
-                    this.style.backgroundColor = '#7BC67B';
-                    this.style.transform = 'scale(0.95)';
-                }
-            }, { passive: false });
-        });
-    });
-    
-    // If game selection exists, make sure it's properly set up
-    if (gameSelection) {
-        // Ensure it's visible initially
-        gameSelection.style.display = 'block';
-        gameSelection.style.visibility = 'visible';
-        gameSelection.style.opacity = '1';
-        gameSelection.style.pointerEvents = 'auto';
-        gameSelection.classList.remove('hidden');
-        
-        // Add better styles for iOS
-        gameSelection.style.webkitTransform = 'translate3d(0,0,0)';
-        gameSelection.style.transform = 'translate3d(0,0,0)';
-        
-        console.log("Game selection visibility ensured");
-    }
-    
-    console.log("Failsafe game option handlers attached");
-}
-
-// Initialize all event handlers when window loads
-window.addEventListener('load', function() {
-    console.log("Window loaded - initializing all handlers");
-    
-    // First position overlay
-    setTimeout(positionDecorativeOverlay, 500);
-    
-    // Initialize device detection
-    if (typeof deviceInfo !== 'undefined') {
-        deviceInfo.initialize();
-    }
-    
-    // Attach failsafe handlers for game options
-    attachGameOptionHandlers();
-    
-    // Also initialize game selection the normal way as a backup
-    setTimeout(initGameSelection, 600);
-});
-
-// Add a function that can be called from the console to manually reposition dirt holes
-window.fixDirtHoles = function(adjustments) {
-    console.log("Manual dirt hole repositioning triggered");
-    
-    // If custom adjustments are provided, use them
-    if (adjustments && typeof adjustments === 'object') {
-        window.customDirtAdjustments = adjustments;
-        console.log("Using custom adjustments:", adjustments);
-    }
-    
-    // Reposition the dirt holes
-    positionDecorativeOverlay();
-    
-    // Force a redraw of the markers
-    const markers = document.querySelectorAll('.hole-marker');
-    markers.forEach(marker => {
-        marker.style.display = 'none';
-        void marker.offsetHeight;
-        marker.style.display = 'block';
-    });
-    
-    return "Dirt hole repositioning complete. If you need to make custom adjustments, call this function with an object like: fixDirtHoles({0:{x:-10,y:20}, 1:{x:15,y:10}})";
-};
-
-// Make absolutely sure the function is in the global scope
-self.fixDirtHoles = window.fixDirtHoles;
-
-// Initialize scene
-setupScene();
