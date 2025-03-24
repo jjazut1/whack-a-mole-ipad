@@ -127,8 +127,14 @@ function initGameSelection() {
             correctWords = wordCategories[selectedGame].words;
             incorrectWords = generateIncorrectWords(selectedGame);
             
-            // Hide selection UI
-            onGameOptionSelected(selectedGame);
+            // FIXED: Hide selection UI - Use multiple approaches to ensure it's hidden on iPad Safari
+            gameSelection.style.display = 'none';
+            gameSelection.style.visibility = 'hidden';
+            gameSelection.style.opacity = '0';
+            gameSelection.style.pointerEvents = 'none';
+            
+            // Force a browser reflow to ensure updates are applied
+            void gameSelection.offsetHeight;
             
             // Set and show the game title
             gameTitleDisplay.textContent = wordCategories[selectedGame].title;
@@ -137,35 +143,47 @@ function initGameSelection() {
             // Start the game
             startGame();
         });
+        
+        // Add touch events for iPad specifically
+        option.addEventListener('touchend', function(e) {
+            e.preventDefault(); // Prevent default touch behavior
+            
+            // Simulate the click after preventing default
+            this.click();
+            
+            // Extra safety measure - hide the popup with delay to ensure rendering
+            setTimeout(function() {
+                const gameSelection = document.getElementById('game-selection');
+                gameSelection.style.display = 'none';
+                gameSelection.style.visibility = 'hidden';
+                gameSelection.style.opacity = '0';
+                gameSelection.style.pointerEvents = 'none';
+            }, 50);
+        }, { passive: false });
     });
 }
 
 // Call initGameSelection after DOM is loaded
 document.addEventListener('DOMContentLoaded', initGameSelection);
 
-// Modified handleInteraction function to check for game selection screen
-const originalHandleInteraction = window.handleInteraction || function() {};
-window.handleInteraction = function(event) {
-    const gameSelection = document.getElementById('game-selection');
-    
-    // If game selection is visible, don't handle the interaction
-    if (gameSelection && gameSelection.style.display !== 'none') {
-        return;
-    }
-    
-    // If game is not active but selection is hidden, it's either a new game or game over screen
-    if (!gameActive) {
-        const gameSelection = document.getElementById('game-selection');
-        gameSelection.style.display = 'block';
-        
-        if (document.getElementById('instructionsElement')) {
-            document.getElementById('instructionsElement').style.display = 'none';
-        }
-        return;
-    }
-    
-    // Otherwise, proceed with original handler
-    originalHandleInteraction(event);
+// FIXED: Ensure the onGameOptionSelected function is directly accessible globally
+window.onGameOptionSelected = function(selectedGame) {
+  // Get the game selection popup
+  const gameSelection = document.getElementById('game-selection');
+  
+  // Use multiple CSS properties to ensure it's completely hidden
+  gameSelection.style.display = 'none';
+  gameSelection.style.visibility = 'hidden';
+  gameSelection.style.opacity = '0';
+  gameSelection.style.pointerEvents = 'none';
+  
+  // Also try adding a CSS class for redundancy
+  gameSelection.classList.add('hidden');
+  
+  // Force a browser reflow to ensure updates are applied
+  void gameSelection.offsetHeight;
+  
+  console.log('Game selection popup hidden');
 };
 
 // UI Setup
@@ -493,223 +511,162 @@ const moleEyeMaterial = new THREE.MeshLambertMaterial({
     color: 0x1A1A1A  // Dark gray for eyes
 });
 
-// Modified click and touch handler
-window.addEventListener('click', handleInteraction);
-window.addEventListener('touchstart', handleInteraction, { passive: false });
-window.addEventListener('touchend', preventDefaultTouch, { passive: false });
-window.addEventListener('touchmove', preventDefaultTouch, { passive: false });
-
-// Prevent default touch behaviors
-function preventDefaultTouch(event) {
-    event.preventDefault();
-    event.stopPropagation();
-}
-
-// Handle both mouse clicks and touch events
-function handleInteraction(event) {
-    console.log('Interaction detected:', event.type);
+// Modified handleInteraction function to check for game selection screen
+const originalHandleInteraction = window.handleInteraction || function() {};
+window.handleInteraction = function(event) {
+    const gameSelection = document.getElementById('game-selection');
     
-    // Create a unique ID for this interaction to prevent duplicate processing
-    const interactionId = Date.now();
-    
-    // Store the current interaction ID to prevent duplicate processing
-    if (window.lastInteractionId && (interactionId - window.lastInteractionId) < 300) {
-        console.log('Ignoring rapid interaction');
-        return; // Ignore interactions that happen too quickly after another
-    }
-    window.lastInteractionId = interactionId;
-    
-    // Prevent default behavior for touch events to avoid scrolling/zooming
-    if (event.type === 'touchstart') {
-        event.preventDefault();
-        event.stopPropagation();
-    }
-    
-    if (!gameActive) {
-        startGame();
-        instructionsElement.style.display = 'none';
+    // If game selection is visible, don't handle the interaction
+    if (gameSelection && gameSelection.style.display !== 'none') {
         return;
     }
     
-    // Get the coordinates (handling both mouse and touch)
-    let clientX, clientY;
-    
-    if (event.type === 'touchstart') {
-        // Get the first touch point
-        const touch = event.touches[0];
-        clientX = touch.clientX;
-        clientY = touch.clientY;
+    // If game is not active but selection is hidden, it's either a new game or game over screen
+    if (!gameActive) {
+        const gameSelection = document.getElementById('game-selection');
+        gameSelection.style.display = 'block';
         
-        console.log('Touch detected at:', clientX, clientY);
-    } else {
-        // Regular mouse event
-        clientX = event.clientX;
-        clientY = event.clientY;
+        if (document.getElementById('instructionsElement')) {
+            document.getElementById('instructionsElement').style.display = 'none';
+        }
+        return;
     }
     
-    const mouse = new THREE.Vector2(
-        (clientX / window.innerWidth) * 2 - 1,
-        -(clientY / window.innerHeight) * 2 + 1
-    );
-    
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, camera);
-    
-    // Use a more comprehensive approach to find intersections
-    // Create a flattened array of all meshes in the mole groups
-    let hitMole = null;
-    
-    // First, try the standard approach - intersecting with visible moles
-    const visibleMoles = moles.filter(mole => mole.visible);
-    const moleObjects = [];
-    
-    // Collect all objects in the mole hierarchy for intersection testing
-    visibleMoles.forEach(moleGroup => {
-        // Only include moles that are up and not already being animated
-        if (moleGroup.userData.isUp && !moleGroup.userData.isMoving) {
-            moleGroup.traverse(object => {
-                if (object.isMesh) {
-                    object.userData.parentMole = moleGroup; // Store reference to parent
-                    moleObjects.push(object);
-                }
-            });
-        }
-    });
-    
-    // Check for intersections with all meshes
-    const intersects = raycaster.intersectObjects(moleObjects, false);
-    
-    if (intersects.length > 0) {
-        // Find the parent mole of the intersected object
-        hitMole = intersects[0].object.userData.parentMole || 
-                  intersects[0].object.parent;
-                  
-        console.log('Hit detected on:', hitMole);
+    // Otherwise, proceed with original handler
+    originalHandleInteraction(event);
+};
+
+// Add CSS for better Safari compatibility
+document.head.insertAdjacentHTML('beforeend', `
+<style>
+    #game-selection.hidden {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        z-index: -1 !important;
     }
     
-    // If a mole was hit
-    if (hitMole && hitMole.userData && hitMole.userData.isUp && !hitMole.userData.isMoving) {
-        console.log('Processing hit on mole:', hitMole);
+    /* Make game option buttons larger and more tappable for iPad */
+    .game-option {
+        min-height: 44px;
+        padding: 12px;
+        margin: 8px 0;
+        font-size: 18px;
+    }
+    
+    /* Force immediate hiding on Safari */
+    .ios-safari #game-selection[style*="display: none"],
+    .ios-safari #game-selection.hidden {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        position: absolute !important;
+        z-index: -999 !important;
+        transform: translateY(-100vh) !important;
+    }
+</style>
+`);
+
+// Safari-specific detection and fixes
+function applySafariSpecificFixes() {
+    // Detect if running on iOS Safari
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    
+    if (isIOS || isSafari) {
+        console.log("iOS Safari detected, applying specific fixes");
         
-        // Mark this mole as being hit to prevent duplicate hits
-        hitMole.userData.isMoving = true;
+        // Add a class to the body for CSS targeting
+        document.body.classList.add('ios-safari');
         
-        if (isCorrectWord) {
-            score += 10;
-            
-            // Increase the streak counter for correct hits
-            correctStreak++;
-            console.log(`Current streak: ${correctStreak}`);
-            
-            // Check if player has achieved 3 correct hits in a row
-            if (correctStreak >= 3 && correctStreak % 3 === 0 && lastStreakBonus !== correctStreak) {
-                // Award bonus points
-                score += 10;
-                lastStreakBonus = correctStreak;
+        // Additional strong fix to ensure game selection popup hides on game start
+        const originalStartGame = window.startGame;
+        window.startGame = function() {
+            // Force hide selection UI first
+            const gameSelection = document.getElementById('game-selection');
+            if (gameSelection) {
+                gameSelection.style.display = 'none';
+                gameSelection.style.visibility = 'hidden';
+                gameSelection.style.opacity = '0';
+                gameSelection.style.pointerEvents = 'none';
+                gameSelection.classList.add('hidden');
                 
-                // Show streak bonus celebration
-                showStreakBonus();
-            }
-            
-            // Add success indicator at hit position
-            createSuccessIndicator(hitMole.position.clone().add(new THREE.Vector3(0, 1, 0)));
-        } else {
-            score = Math.max(0, score - 5);
-            // Reset streak on incorrect hit
-            correctStreak = 0;
-        }
-        updateUI();
-        
-        // Use setTimeout to ensure there's a small delay before the animation starts
-        // This helps prevent event race conditions
-        setTimeout(() => {
-            animateMole(hitMole, false);
-        }, 50);
-        
-    } else if (event.type === 'touchstart') {
-        // Special handling for iPad touch - if no direct hit was detected
-        // Find the closest visible mole to the touch point
-        console.log('No direct hit - checking proximity for touch events');
-        
-        let closestDistance = Infinity;
-        let closestMole = null;
-        
-        visibleMoles.forEach(mole => {
-            if (mole.userData.isUp && !mole.userData.isMoving) {
-                // Project mole position to screen coordinates
-                const molePos = new THREE.Vector3(
-                    mole.position.x,
-                    mole.position.y,
-                    mole.position.z
-                );
-                molePos.project(camera);
-                
-                // Convert to screen coordinates
-                const moleScreenX = (molePos.x + 1) * window.innerWidth / 2;
-                const moleScreenY = (-molePos.y + 1) * window.innerHeight / 2;
-                
-                // Calculate distance to touch point
-                const distance = Math.sqrt(
-                    Math.pow(moleScreenX - clientX, 2) + 
-                    Math.pow(moleScreenY - clientY, 2)
-                );
-                
-                // Set a reasonable proximity threshold (in pixels)
-                const proximityThreshold = 150; // Larger for iPad
-                
-                if (distance < proximityThreshold && distance < closestDistance) {
-                    closestDistance = distance;
-                    closestMole = mole;
-                }
-            }
-        });
-        
-        // If we found a close mole, register a hit
-        if (closestMole && !closestMole.userData.isMoving) {
-            console.log('Proximity hit detected - distance:', closestDistance);
-            
-            // Mark this mole as being hit to prevent duplicate hits
-            closestMole.userData.isMoving = true;
-            
-            if (isCorrectWord) {
-                score += 10;
-                
-                // Increase streak for correct hits
-                correctStreak++;
-                console.log(`Current streak: ${correctStreak}`);
-                
-                // Check if player has achieved 3 correct hits in a row
-                if (correctStreak >= 3 && correctStreak % 3 === 0 && lastStreakBonus !== correctStreak) {
-                    // Award bonus points
-                    score += 10;
-                    lastStreakBonus = correctStreak;
+                // Try removing from DOM temporarily and restoring later
+                if (gameSelection.parentNode) {
+                    const tempHolder = document.createElement('div');
+                    tempHolder.id = 'game-selection-holder';
+                    tempHolder.style.display = 'none';
+                    const parentNode = gameSelection.parentNode;
+                    parentNode.insertBefore(tempHolder, gameSelection);
+                    tempHolder.appendChild(gameSelection);
                     
-                    // Show streak bonus celebration
-                    showStreakBonus();
+                    // Restore after a delay
+                    setTimeout(() => {
+                        if (tempHolder.parentNode) {
+                            parentNode.insertBefore(gameSelection, tempHolder);
+                            parentNode.removeChild(tempHolder);
+                            gameSelection.style.display = 'none';
+                            gameSelection.classList.add('hidden');
+                        }
+                    }, 1000);
+                }
+            }
+            
+            // Now call the original function
+            originalStartGame.apply(this, arguments);
+        };
+        
+        // Patch game option buttons to ensure they hide the selection UI correctly
+        document.querySelectorAll('.game-option').forEach(option => {
+            const originalClick = option.onclick;
+            option.onclick = function(e) {
+                // Hide game selection immediately using all possible methods
+                const gameSelection = document.getElementById('game-selection');
+                if (gameSelection) {
+                    gameSelection.classList.add('hidden');
+                    gameSelection.style.cssText = 'display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important;';
+                    
+                    // Force a browser reflow to ensure updates are applied
+                    void gameSelection.offsetHeight;
                 }
                 
-                createSuccessIndicator(closestMole.position.clone().add(new THREE.Vector3(0, 1, 0)));
-            } else {
-                score = Math.max(0, score - 5);
-                // Reset streak on incorrect hit
-                correctStreak = 0;
-            }
-            updateUI();
+                // Call original click handler if it exists
+                if (typeof originalClick === 'function') {
+                    originalClick.call(this, e);
+                }
+            };
             
-            // Use setTimeout to ensure there's a small delay before the animation starts
-            setTimeout(() => {
-                animateMole(closestMole, false);
-            }, 50);
-        }
+            // Add touch events specifically for iPads
+            option.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                
+                // Extreme measures to hide game selection
+                const gameSelection = document.getElementById('game-selection');
+                if (gameSelection) {
+                    gameSelection.classList.add('hidden');
+                    gameSelection.style.cssText = 'display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important;';
+                    
+                    // Try to physically move it off-screen as well
+                    gameSelection.style.position = 'absolute';
+                    gameSelection.style.left = '-9999px';
+                    gameSelection.style.transform = 'translateY(-9999px)';
+                }
+                
+                // Click the button with a slight delay to ensure the DOM has updated
+                setTimeout(() => {
+                    this.click();
+                }, 50);
+            }, { passive: false });
+        });
     }
-    
-    // Clear the interaction ID after a delay to prevent issues with holding
-    setTimeout(() => {
-        if (window.lastInteractionId === interactionId) {
-            window.lastInteractionId = null;
-        }
-    }, 500);
 }
+
+// Run Safari fixes on page load
+window.addEventListener('load', function() {
+    applySafariSpecificFixes();
+});
 
 // Show streak bonus celebration notification
 function showStreakBonus() {
@@ -1821,23 +1778,220 @@ window.addEventListener('resize', function() {
     positionDecorativeOverlay();
 });
 
-// When a game option is selected, this needs to happen:
-function onGameOptionSelected(selectedGame) {
-  // Get the game selection popup
-  const gameSelection = document.getElementById('game-selection');
-  
-  // Use multiple CSS properties to ensure it's completely hidden
-  gameSelection.style.display = 'none';
-  gameSelection.style.visibility = 'hidden';
-  gameSelection.style.opacity = '0';
-  gameSelection.style.pointerEvents = 'none';
-  
-  // Also try adding a CSS class for redundancy
-  gameSelection.classList.add('hidden');
-  
-  // Force a browser reflow to ensure updates are applied
-  void gameSelection.offsetHeight;
-  
-  // Continue with starting the game
-  // ...
+// Modified click and touch handler
+window.addEventListener('click', handleInteraction);
+window.addEventListener('touchstart', handleInteraction, { passive: false });
+window.addEventListener('touchend', preventDefaultTouch, { passive: false });
+window.addEventListener('touchmove', preventDefaultTouch, { passive: false });
+
+// Prevent default touch behaviors
+function preventDefaultTouch(event) {
+    event.preventDefault();
+    event.stopPropagation();
+}
+
+// Handle both mouse clicks and touch events
+function handleInteraction(event) {
+    console.log('Interaction detected:', event.type);
+    
+    // Create a unique ID for this interaction to prevent duplicate processing
+    const interactionId = Date.now();
+    
+    // Store the current interaction ID to prevent duplicate processing
+    if (window.lastInteractionId && (interactionId - window.lastInteractionId) < 300) {
+        console.log('Ignoring rapid interaction');
+        return; // Ignore interactions that happen too quickly after another
+    }
+    window.lastInteractionId = interactionId;
+    
+    // Prevent default behavior for touch events to avoid scrolling/zooming
+    if (event.type === 'touchstart') {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    if (!gameActive) {
+        startGame();
+        instructionsElement.style.display = 'none';
+        return;
+    }
+    
+    // Get the coordinates (handling both mouse and touch)
+    let clientX, clientY;
+    
+    if (event.type === 'touchstart') {
+        // Get the first touch point
+        const touch = event.touches[0];
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+        
+        console.log('Touch detected at:', clientX, clientY);
+    } else {
+        // Regular mouse event
+        clientX = event.clientX;
+        clientY = event.clientY;
+    }
+    
+    const mouse = new THREE.Vector2(
+        (clientX / window.innerWidth) * 2 - 1,
+        -(clientY / window.innerHeight) * 2 + 1
+    );
+    
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    
+    // Use a more comprehensive approach to find intersections
+    // Create a flattened array of all meshes in the mole groups
+    let hitMole = null;
+    
+    // First, try the standard approach - intersecting with visible moles
+    const visibleMoles = moles.filter(mole => mole.visible);
+    const moleObjects = [];
+    
+    // Collect all objects in the mole hierarchy for intersection testing
+    visibleMoles.forEach(moleGroup => {
+        // Only include moles that are up and not already being animated
+        if (moleGroup.userData.isUp && !moleGroup.userData.isMoving) {
+            moleGroup.traverse(object => {
+                if (object.isMesh) {
+                    object.userData.parentMole = moleGroup; // Store reference to parent
+                    moleObjects.push(object);
+                }
+            });
+        }
+    });
+    
+    // Check for intersections with all meshes
+    const intersects = raycaster.intersectObjects(moleObjects, false);
+    
+    if (intersects.length > 0) {
+        // Find the parent mole of the intersected object
+        hitMole = intersects[0].object.userData.parentMole || 
+                  intersects[0].object.parent;
+                  
+        console.log('Hit detected on:', hitMole);
+    }
+    
+    // If a mole was hit
+    if (hitMole && hitMole.userData && hitMole.userData.isUp && !hitMole.userData.isMoving) {
+        console.log('Processing hit on mole:', hitMole);
+        
+        // Mark this mole as being hit to prevent duplicate hits
+        hitMole.userData.isMoving = true;
+        
+        if (isCorrectWord) {
+            score += 10;
+            
+            // Increase the streak counter for correct hits
+            correctStreak++;
+            console.log(`Current streak: ${correctStreak}`);
+            
+            // Check if player has achieved 3 correct hits in a row
+            if (correctStreak >= 3 && correctStreak % 3 === 0 && lastStreakBonus !== correctStreak) {
+                // Award bonus points
+                score += 10;
+                lastStreakBonus = correctStreak;
+                
+                // Show streak bonus celebration
+                showStreakBonus();
+            }
+            
+            // Add success indicator at hit position
+            createSuccessIndicator(hitMole.position.clone().add(new THREE.Vector3(0, 1, 0)));
+        } else {
+            score = Math.max(0, score - 5);
+            // Reset streak on incorrect hit
+            correctStreak = 0;
+        }
+        updateUI();
+        
+        // Use setTimeout to ensure there's a small delay before the animation starts
+        // This helps prevent event race conditions
+        setTimeout(() => {
+            animateMole(hitMole, false);
+        }, 50);
+        
+    } else if (event.type === 'touchstart') {
+        // Special handling for iPad touch - if no direct hit was detected
+        // Find the closest visible mole to the touch point
+        console.log('No direct hit - checking proximity for touch events');
+        
+        let closestDistance = Infinity;
+        let closestMole = null;
+        
+        visibleMoles.forEach(mole => {
+            if (mole.userData.isUp && !mole.userData.isMoving) {
+                // Project mole position to screen coordinates
+                const molePos = new THREE.Vector3(
+                    mole.position.x,
+                    mole.position.y,
+                    mole.position.z
+                );
+                molePos.project(camera);
+                
+                // Convert to screen coordinates
+                const moleScreenX = (molePos.x + 1) * window.innerWidth / 2;
+                const moleScreenY = (-molePos.y + 1) * window.innerHeight / 2;
+                
+                // Calculate distance to touch point
+                const distance = Math.sqrt(
+                    Math.pow(moleScreenX - clientX, 2) + 
+                    Math.pow(moleScreenY - clientY, 2)
+                );
+                
+                // Set a reasonable proximity threshold (in pixels)
+                const proximityThreshold = 150; // Larger for iPad
+                
+                if (distance < proximityThreshold && distance < closestDistance) {
+                    closestDistance = distance;
+                    closestMole = mole;
+                }
+            }
+        });
+        
+        // If we found a close mole, register a hit
+        if (closestMole && !closestMole.userData.isMoving) {
+            console.log('Proximity hit detected - distance:', closestDistance);
+            
+            // Mark this mole as being hit to prevent duplicate hits
+            closestMole.userData.isMoving = true;
+            
+            if (isCorrectWord) {
+                score += 10;
+                
+                // Increase streak for correct hits
+                correctStreak++;
+                console.log(`Current streak: ${correctStreak}`);
+                
+                // Check if player has achieved 3 correct hits in a row
+                if (correctStreak >= 3 && correctStreak % 3 === 0 && lastStreakBonus !== correctStreak) {
+                    // Award bonus points
+                    score += 10;
+                    lastStreakBonus = correctStreak;
+                    
+                    // Show streak bonus celebration
+                    showStreakBonus();
+                }
+                
+                createSuccessIndicator(closestMole.position.clone().add(new THREE.Vector3(0, 1, 0)));
+            } else {
+                score = Math.max(0, score - 5);
+                // Reset streak on incorrect hit
+                correctStreak = 0;
+            }
+            updateUI();
+            
+            // Use setTimeout to ensure there's a small delay before the animation starts
+            setTimeout(() => {
+                animateMole(closestMole, false);
+            }, 50);
+        }
+    }
+    
+    // Clear the interaction ID after a delay to prevent issues with holding
+    setTimeout(() => {
+        if (window.lastInteractionId === interactionId) {
+            window.lastInteractionId = null;
+        }
+    }, 500);
 }
