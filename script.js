@@ -26,6 +26,11 @@ canvas.addEventListener('click', function(e) {
     e.preventDefault(); // Prevent default touch behavior
 }, { passive: false });
 
+canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault(); // Prevent default touch behavior
+    handleInteraction(e);
+}, { passive: false });
+
 // Initialize arrays and game state
 const moles = [];
 let score = 0;
@@ -138,10 +143,35 @@ function initGameSelection() {
             startGame();
         });
     });
+
+    // Add touchstart event listener for game options
+    gameOptions.forEach(option => {
+        option.addEventListener('touchstart', function() {
+            const selectedGame = this.getAttribute('data-game');
+            
+            // Set current category
+            currentCategory = selectedGame;
+            correctWords = wordCategories[selectedGame].words;
+            incorrectWords = generateIncorrectWords(selectedGame);
+            
+            // Hide selection UI
+            gameSelection.style.display = 'none';
+            
+            // Set and show the game title
+            gameTitleDisplay.textContent = wordCategories[selectedGame].title;
+            gameTitleDisplay.style.display = 'block';
+            
+            // Start the game
+            startGame();
+        });
+    });
 }
 
 // Call initGameSelection after DOM is loaded
 document.addEventListener('DOMContentLoaded', initGameSelection);
+
+// Add touchstart event listener for window
+window.addEventListener('touchstart', handleInteraction, { passive: false });
 
 // Modified handleInteraction function to check for game selection screen
 const originalHandleInteraction = window.handleInteraction || function() {};
