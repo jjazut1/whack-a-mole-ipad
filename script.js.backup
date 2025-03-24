@@ -2040,4 +2040,207 @@ function preventDefaultTouch(event) {
 }
 
 // Handle both mouse clicks and touch events
-// Note: handleInteraction function is defined earlier in the file (around line 203)
+function handleInteraction(event) {
+    console.log('Interaction detected:', event.type);
+    
+    // Create a unique ID for this interaction to prevent duplicate processing
+    const interactionId = Date.now();
+    
+    // Store the current interaction ID to prevent duplicate processing
+    if (window.lastInteractionId && (interactionId - window.lastInteractionId) < 300) {
+        console.log('Ignoring rapid interaction');
+        return; // Ignore interactions that happen too quickly after another
+    }
+    window.lastInteractionId = interactionId;
+    
+    // Prevent processing events that happen too quickly after another
+    if (event.type === 'touchstart') {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    if (!gameActive) {
+        startGame();
+        instructionsElement.style.display = 'none';
+        return;
+    }
+    
+    // Get the coordinates (handling both mouse and touch)
+    let clientX, clientY;
+    
+    if (event.type === 'touchstart') {
+        // Get the first touch point
+        const touch = event.touches[0];
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+        
+        console.log('Touch detected at:', clientX, clientY);
+    } else {
+        // Regular mouse event
+        clientX = event.clientX;
+        clientY = event.clientY;
+    }
+    
+    const mouse = new THREE.Vector2(
+        (clientX / window.innerWidth) * 2 - 1,
+        -(clientY / window.innerHeight) * 2 + 1
+    );
+    
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    
+    // Use a more comprehensive approach to find intersections
+    // Create a flattened array of all meshes in the mole groups
+    let hitMole = null;
+    
+    // First, try the standard approach - intersecting with visible moles
+    const visibleMoles = moles.filter(mole => mole.visible);
+    const moleObjects = [];
+    
+    // Collect all objects in the mole hierarchy for intersection testing
+    visibleMoles.forEach(moleGroup => {
+        // Only include moles that are up and not already being animated
+        if (moleGroup.userData.isUp && !moleGroup.userData.isMoving) {
+            moleGroup.traverse(object => {
+                if (object.isMesh) {
+                    object.userData.parentMole = moleGroup; // Store reference to parent
+                    moleObjects.push(object);
+                }
+            });
+        }
+    });
+    
+    // Check for intersections with all meshes
+    const intersects = raycaster.intersectObjects(moleObjects, false);
+    
+    if (intersects.length > 0) {
+        // Find the parent mole of the intersected object
+        hitMole = intersects[0].object.userData.parentMole || 
+                  intersects[0].object.parent;
+                  
+        console.log('Hit detected on:', hitMole);
+    }
+    
+    // If a mole was hit
+    if (hitMole && hitMole.userData && hitMole.userData.isUp && !hitMole.userData.isMoving) {
+        console.log('Processing hit on mole:', hitMole);
+        
+        // Mark this mole as being hit to prevent duplicate hits
+        hitMole.userData.isMoving = true;
+        
+        if (isCorrectWord) {
+            score += 10;
+            
+            // Increase the streak counter for correct hits
+            correctStreak++;
+            console.log(`Current streak: ${correctStreak}`);
+            
+            // Check if player has achieved 3 correct hits in a row
+            if (correctStreak >= 3 && correctStreak % 3 === 0 && lastStreakBonus !== correctStreak) {
+                // Award bonus points
+                score += 10;
+                lastStreakBonus = correctStreak;
+                
+                // Show streak bonus celebration
+                showStreakBonus();
+            }
+            
+            // Add success indicator at hit position
+            createSuccessIndicator(hitMole.position.clone().add(new THREE.Vector3(0, 1, 0)));
+        } else {
+            score = Math.max(0, score - 5);
+            // Reset streak on incorrect hit
+            correctStreak = 0;
+        }
+        updateUI();
+        
+        // Use setTimeout to ensure there's a small delay before the animation starts
+        // This helps prevent event race conditions
+        setTimeout(() => {
+            animateMole(hitMole, false);
+        }, 50);
+        
+    } else if (event.type === 'touchstart') {
+        // Special handling for iPad touch - if no direct hit was detected
+        // Find the closest visible mole to the touch point
+        console.log('No direct hit - checking proximity for touch events');
+        
+        let closestDistance = Infinity;
+        let closestMole = null;
+        
+        visibleMoles.forEach(mole => {
+            if (mole.userData.isUp && !mole.userData.isMoving) {
+                // Project mole position to screen coordinates
+                const molePos = new THREE.Vector3(
+                    mole.position.x,
+                    mole.position.y,
+                    mole.position.z
+                );
+                molePos.project(camera);
+                
+                // Convert to screen coordinates
+                const moleScreenX = (molePos.x + 1) * window.innerWidth / 2;
+                const moleScreenY = (-molePos.y + 1) * window.innerHeight / 2;
+                
+                // Calculate distance to touch point
+                const distance = Math.sqrt(
+                    Math.pow(moleScreenX - clientX, 2) + 
+                    Math.pow(moleScreenY - clientY, 2)
+                );
+                
+                // Set a reasonable proximity threshold (in pixels)
+                const proximityThreshold = 150; // Larger for iPad
+                
+                if (distance < proximityThreshold && distance < closestDistance) {
+                    closestDistance = distance;
+                    closestMole = mole;
+                }
+            }
+        });
+        
+        // If we found a close mole, register a hit
+        if (closestMole && !closestMole.userData.isMoving) {
+            console.log('Proximity hit detected - distance:', closestDistance);
+            
+            // Mark this mole as being hit to prevent duplicate hits
+            closestMole.userData.isMoving = true;
+            
+            if (isCorrectWord) {
+                score += 10;
+                
+                // Increase streak for correct hits
+                correctStreak++;
+                console.log(`Current streak: ${correctStreak}`);
+                
+                // Check if player has achieved 3 correct hits in a row
+                if (correctStreak >= 3 && correctStreak % 3 === 0 && lastStreakBonus !== correctStreak) {
+                    // Award bonus points
+                    score += 10;
+                    lastStreakBonus = correctStreak;
+                    
+                    // Show streak bonus celebration
+                    showStreakBonus();
+                }
+                
+                createSuccessIndicator(closestMole.position.clone().add(new THREE.Vector3(0, 1, 0)));
+            } else {
+                score = Math.max(0, score - 5);
+                // Reset streak on incorrect hit
+                correctStreak = 0;
+            }
+            updateUI();
+            
+            // Use setTimeout to ensure there's a small delay before the animation starts
+            setTimeout(() => {
+                animateMole(closestMole, false);
+            }, 50);
+        }
+    }
+    
+    // Clear the interaction ID after a delay to prevent issues with holding
+    setTimeout(() => {
+        if (window.lastInteractionId === interactionId) {
+            window.lastInteractionId = null;
+        }
+    }, 500);
+}
