@@ -22,7 +22,7 @@ document.getElementById('canvas-container').appendChild(renderer.domElement);
 // Configure canvas for better touch events
 const canvas = renderer.domElement;
 canvas.style.touchAction = 'none'; // Disable browser touch actions
-canvas.addEventListener('touchstart', function(e) {
+canvas.addEventListener('click', function(e) {
     e.preventDefault(); // Prevent default touch behavior
 }, { passive: false });
 
@@ -495,15 +495,6 @@ const moleEyeMaterial = new THREE.MeshLambertMaterial({
 
 // Modified click and touch handler
 window.addEventListener('click', handleInteraction);
-window.addEventListener('touchstart', handleInteraction, { passive: false });
-window.addEventListener('touchend', preventDefaultTouch, { passive: false });
-window.addEventListener('touchmove', preventDefaultTouch, { passive: false });
-
-// Prevent default touch behaviors
-function preventDefaultTouch(event) {
-    event.preventDefault();
-    event.stopPropagation();
-}
 
 // Handle both mouse clicks and touch events
 function handleInteraction(event) {

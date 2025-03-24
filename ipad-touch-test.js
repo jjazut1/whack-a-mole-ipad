@@ -1,0 +1,1 @@
+window.testTouchSupport = function() { console.log('Testing touch support'); const gameOptions = document.querySelectorAll('.game-option'); if (gameOptions.length > 0) { console.log('Found '+gameOptions.length+' game options'); gameOptions[0].click(); } return 'Touch test complete'; };
