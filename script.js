@@ -547,7 +547,7 @@ function handleInteraction(event) {
     }
     
     if (!gameActive) {
-        startGame();
+        startCountdown(); // Start countdown instead of game directly
         instructionsElement.style.display = 'none';
         return;
     }
@@ -1843,3 +1843,37 @@ console.log("Game initialization complete - running latest version");
 window.addEventListener('resize', function() {
     positionDecorativeOverlay();
 });
+
+// Add countdown element
+const countdownElement = document.createElement('div');
+countdownElement.style.position = 'absolute';
+countdownElement.style.top = '50%';
+countdownElement.style.left = '50%';
+countdownElement.style.transform = 'translate(-50%, -50%)';
+countdownElement.style.color = 'white';
+countdownElement.style.fontSize = '48px';
+countdownElement.style.fontWeight = 'bold';
+countdownElement.style.textAlign = 'center';
+countdownElement.style.zIndex = '10'; // Higher z-index to appear in front of everything
+countdownElement.style.display = 'none';
+document.body.appendChild(countdownElement);
+
+// Countdown function
+function startCountdown() {
+    let countdown = 3;
+    countdownElement.style.display = 'block';
+    countdownElement.textContent = countdown;
+
+    const countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+            countdownElement.textContent = countdown;
+        } else if (countdown === 0) {
+            countdownElement.textContent = 'Start!';
+        } else {
+            clearInterval(countdownInterval);
+            countdownElement.style.display = 'none';
+            startGame(); // Start the game after countdown
+        }
+    }, 1000);
+}
