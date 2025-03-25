@@ -1860,6 +1860,7 @@ document.body.appendChild(countdownElement);
 
 // Countdown function
 function startCountdown() {
+    console.log('Starting countdown, resetting game state');
     // Reset all moles before starting the countdown
     moles.forEach(mole => {
         mole.visible = false;
@@ -1870,6 +1871,14 @@ function startCountdown() {
         mole.userData.lastClicked = null;
         mole.userData.currentAppearanceId = null;
     });
+
+    // Reset game variables
+    score = 0;
+    gameActive = false;
+    timeRemaining = 30;
+    correctStreak = 0;
+    lastStreakBonus = 0;
+    window.lastInteractionId = null;
 
     let countdown = 3;
     countdownElement.style.display = 'block';
