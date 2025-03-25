@@ -1860,6 +1860,17 @@ document.body.appendChild(countdownElement);
 
 // Countdown function
 function startCountdown() {
+    // Reset all moles before starting the countdown
+    moles.forEach(mole => {
+        mole.visible = false;
+        mole.position.y = -1.8;
+        mole.userData.isUp = false;
+        mole.userData.isMoving = false;
+        mole.userData.clickId = null;
+        mole.userData.lastClicked = null;
+        mole.userData.currentAppearanceId = null;
+    });
+
     let countdown = 3;
     countdownElement.style.display = 'block';
     countdownElement.textContent = countdown;
@@ -1873,7 +1884,7 @@ function startCountdown() {
         } else {
             clearInterval(countdownInterval);
             countdownElement.style.display = 'none';
-            startGame(); // Start the game after countdown
+            setTimeout(startGame, 500); // Add delay before starting the game
         }
     }, 1000);
 }
