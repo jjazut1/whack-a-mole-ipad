@@ -139,8 +139,8 @@ function initGameSelection() {
             gameTitleDisplay.textContent = wordCategories[selectedGame].title;
             gameTitleDisplay.style.display = 'block';
             
-            // Start the game
-            startGame();
+            // Start the countdown instead of the game directly
+            startCountdown();
         });
     });
 
@@ -161,8 +161,8 @@ function initGameSelection() {
             gameTitleDisplay.textContent = wordCategories[selectedGame].title;
             gameTitleDisplay.style.display = 'block';
             
-            // Start the game
-            startGame();
+            // Start the countdown instead of the game directly
+            startCountdown();
         });
     });
 }
@@ -1850,7 +1850,7 @@ countdownElement.style.position = 'absolute';
 countdownElement.style.top = '50%';
 countdownElement.style.left = '50%';
 countdownElement.style.transform = 'translate(-50%, -50%)';
-countdownElement.style.color = 'white';
+countdownElement.style.color = '#00008B'; // Dark blue
 countdownElement.style.fontSize = '48px';
 countdownElement.style.fontWeight = 'bold';
 countdownElement.style.textAlign = 'center';
