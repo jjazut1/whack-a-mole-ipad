@@ -1072,6 +1072,7 @@ function animateMole(mole, goingUp) {
 
 // Game logic
 function startGame() {
+    if (gameActive) return; // Prevent starting the game loop multiple times
     score = 0;
     timeRemaining = 30;
     gameActive = true;
